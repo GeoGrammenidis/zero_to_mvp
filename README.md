@@ -33,6 +33,11 @@ To run the project
 9. created a .gitignore file to ignore node_modules
 10. initial commited my work, to start working on level zero (`git add .` & `git commit`)
 
+### Level 0
+
+1. before implementing something more complex, updated the level_0.html so that it has ids and buttons
+2. using those ids and buttons used "speechSynthesis" API. I kept it simple, just to make sure everything works as expected with this API.
+
 ## TODO list
 
 - impliment something simple based on what I have studied for level zero.
