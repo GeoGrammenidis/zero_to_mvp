@@ -37,8 +37,18 @@ To run the project
 
 1. before implementing something more complex, updated the level_0.html so that it has ids and buttons
 2. using those ids and buttons used "speechSynthesis" API. I kept it simple, just to make sure everything works as expected with this API.
+3. added functionallities such as "pause, resume, cancel"
+4. added some logs on events such as "onstart, onend, onpause, onerror".
+5. added state to track the state.
+6. to keep code readable, cleaned up the code a bit.
+7. issue found on chrome:
+   - "onwordboundary, onpause, onresume" don't work as they should.
+   - pause boolean stays false even after pause function is called.
+   - So for the state we won't rely on them. We can rey on the button click event for pause / resume.
+8. an other issue was found. sometimes cancel button needs to be pressed, even if nothing is currently playing. So before playing anything new, it would be a good idea to preactively cancel. In future steps I will keep in mind that onerror will fire on cancel as well.
 
 ## TODO list
 
 - impliment something simple based on what I have studied for level zero.
 - check and update [package.json](./package.json)
+- don't forget to make a renderPlayer function to render the player as asked
