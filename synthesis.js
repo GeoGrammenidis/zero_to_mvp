@@ -18,6 +18,7 @@ function renderPlayer(config = {}) {
       pitch: 1,
       rate: 1.2,
       voice: "Google UK English Male",
+      ignoreClasses: ["visually-hidden"],
       ...config,
     };
     const synth = window.speechSynthesis;
@@ -27,7 +28,14 @@ function renderPlayer(config = {}) {
     let unfinishedCode = false;
     let lastButtonPressed = null;
     let lastButtonPressedSvg = null;
-    let headings = document.querySelectorAll(config.targetHeadings.join(", "));
+    let headings = Array.from(
+      document.querySelectorAll(config.targetHeadings.join(", "))
+    )
+      .filter(
+        (heading) =>
+          !config.ignoreClasses.some((x) => heading.classList.contains(x))
+      )
+      .filter((heading) => isElementVisible(heading));
     let buttons = [];
     let texts = [];
     let speeches = [];
@@ -45,10 +53,9 @@ function renderPlayer(config = {}) {
       parentNode.insertBefore(newButton, heading);
       buttons.push(newButton);
       // prepare the text for the speech
+      let headingText = getTextFromElement(heading, true).text.trim();
       texts.push(
-        correctEndPunctation(heading.textContent)
-          ? heading.textContent
-          : heading.textContent + "."
+        correctEndPunctation(headingText) ? headingText : headingText + "."
       );
       let nextSibling = heading;
       while (nextSibling.nextElementSibling) {
@@ -79,12 +86,12 @@ function renderPlayer(config = {}) {
           synth.cancel();
           let words = text.split(" ").filter((x) => x != "");
           let speech = "";
-          words.forEach((word) => {
+          words.forEach((word, i) => {
             speech += word + " ";
             if (
               (speech.length > 150 && correctEndPunctation(speech)) ||
               speech.length > 200 ||
-              words.length == 0
+              i == words.length - 1
             ) {
               speeches.push(speech);
               speech = "";
@@ -213,9 +220,9 @@ function renderPlayer(config = {}) {
       const maxButtonRight = window.innerWidth - 30;
       let buttonLeft;
       if (textWidth < heading.clientWidth) {
-        buttonLeft = getTextWidth(heading) + 14 + heading.offsetLeft;
+        buttonLeft = getTextWidth(heading) + heading.offsetLeft;
       } else {
-        buttonLeft = heading.clientWidth + 14 + heading.offsetLeft;
+        buttonLeft = heading.clientWidth + heading.offsetLeft - 7;
       }
       button.style.left = Math.min(buttonLeft, maxButtonRight) + "px";
 
@@ -245,6 +252,11 @@ function renderPlayer(config = {}) {
         positionButton(button, headings[i]);
       });
     });
+    window.addEventListener("load", function () {
+      buttons.forEach((button, i) => {
+        positionButton(button, headings[i]);
+      });
+    });
     // CSS rules
     const style = document.createElement("style");
     const cssRules = `
@@ -268,6 +280,8 @@ function renderPlayer(config = {}) {
                   border-radius: 50%;
                   border: 2px solid var(--synthesis-brand-600);
                   opacity: 0.75;
+                  transition: 0.25s opacity, 0.25s background-color;
+                  z-index: 10000;
               }
   
               .synthesis_player_btn svg,
@@ -289,7 +303,6 @@ function renderPlayer(config = {}) {
                   border-color: var(--synthesis-brand-700);
                   cursor: pointer;
                   opacity: 1;
-                  transition: 0.25s opacity, 0.25s background-color;
               }
   
               .synthesis_player_btn:active,
@@ -310,7 +323,7 @@ function renderPlayer(config = {}) {
     style.textContent = cssRules;
     document.head.appendChild(style);
 
-    function getTextFromElement(element) {
+    function getTextFromElement(element, firstHeading = false) {
       let isHeadingElemnt = false;
       if (element && element.tagName) {
         isHeadingElemnt = config.targetHeadings.some(
@@ -319,7 +332,7 @@ function renderPlayer(config = {}) {
       }
       if (element.nodeType === Node.TEXT_NODE) {
         return { text: element.textContent.trim(), headindFound: false };
-      } else if (isHeadingElemnt) {
+      } else if (isHeadingElemnt && !firstHeading) {
         return { text: "", headindFound: true };
       } else {
         let text = "";
@@ -353,6 +366,15 @@ function renderPlayer(config = {}) {
 
     function correctEndPunctation(my_string) {
       return /[.!?:]\s*$/.test(my_string);
+    }
+
+    function isElementVisible(element) {
+      const styles = window.getComputedStyle(element);
+      return (
+        styles.display !== "none" &&
+        styles.visibility !== "hidden" &&
+        styles.opacity !== "0"
+      );
     }
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");

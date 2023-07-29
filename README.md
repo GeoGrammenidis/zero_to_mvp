@@ -86,8 +86,14 @@ To run the project
 6. we made sure that headings, list items & paragraphs always have punctation.
 7. links and buttons are announced as well.
 
+### Level 2
+
+1. Reposition buttons after everything is loaded
+2. Fixed position, z-index, and some css properties
+3. Fixed a bug that occured because previously I was using do while and changed to a Array build-in forEach function.
+4. Headings is possible to contain elements and I had forgotten to update the way I was getting the text for elements as well. Fixed.
+
 ## TODO list
 
-- impliment something simple based on what I have studied for level zero.
 - check and update [package.json](./package.json)
-- don't forget to make a renderPlayer function to render the player as asked
+- clean up code
