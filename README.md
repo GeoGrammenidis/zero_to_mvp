@@ -76,6 +76,16 @@ To run the project
 5. for now created some styles and imported them for our buttons.
 6. for the position of the button, calculations were needed with the help of a temporary off-screen element.
 
+### Level 1
+
+1. Updated the way it looks for an element to a recursive one.
+2. key point was that an array of strings for speeches was created. The reason for this is that we didn't want the speeches to be too long since the API can't handle it. We created chunks
+3. on page refresh speech didn't stop so when the page is loaded, we cancel any ongoing speeches
+4. for the buttons position space from the left side of the screen was forgotten to be added to the calculations.
+5. For the speech texts removed any unwanted spaces.
+6. we made sure that headings, list items & paragraphs always have punctation.
+7. links and buttons are announced as well.
+
 ## TODO list
 
 - impliment something simple based on what I have studied for level zero.

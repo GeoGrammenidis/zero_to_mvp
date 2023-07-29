@@ -2,7 +2,8 @@ function renderPlayer(config = {}) {
   if ("speechSynthesis" in window) {
     config = {
       targetHeadings: ["h1", "h2", "h3", "h4", "h5", "h6"],
-      targetTextElements: ["p"],
+      // targetTextElements: ["p"], TODO: make this work only for speicifc elements if given.
+      // TODO: now it stops at the next heading. It would be nice that we could choose to stop at the next same level heading if we want.
       colors: {
         100: "#e6f4fa",
         200: "#c6e9f7",
@@ -20,6 +21,7 @@ function renderPlayer(config = {}) {
       ...config,
     };
     const synth = window.speechSynthesis;
+    synth.cancel();
     const utterThis = new SpeechSynthesisUtterance("Default text");
 
     let unfinishedCode = false;
@@ -28,6 +30,8 @@ function renderPlayer(config = {}) {
     let headings = document.querySelectorAll(config.targetHeadings.join(", "));
     let buttons = [];
     let texts = [];
+    let speeches = [];
+
     headings.forEach((heading, i) => {
       // create svgs for the button.
       let pauseSvg = createSVG("pause");
@@ -41,24 +45,17 @@ function renderPlayer(config = {}) {
       parentNode.insertBefore(newButton, heading);
       buttons.push(newButton);
       // prepare the text for the speech
-      texts.push(heading.textContent);
+      texts.push(
+        correctEndPunctation(heading.textContent)
+          ? heading.textContent
+          : heading.textContent + "."
+      );
       let nextSibling = heading;
       while (nextSibling.nextElementSibling) {
         nextSibling = nextSibling.nextElementSibling;
-        if (
-          config.targetTextElements.some(
-            (x) => x.toLowerCase() == nextSibling.tagName.toLowerCase()
-          )
-        ) {
-          let text = nextSibling.textContent.trim();
-          if (text) {
-            texts[i] += `\n${text}`;
-          }
-        } else if (
-          config.targetHeadings.some(
-            (x) => x.toLowerCase() == nextSibling.tagName.toLowerCase()
-          )
-        ) {
+        let result = getTextFromElement(nextSibling);
+        texts[i] += result.text;
+        if (result.headindFound) {
           break;
         }
       }
@@ -80,7 +77,20 @@ function renderPlayer(config = {}) {
         unfinishedCode = true;
         if (element.getAttribute("data-state") == "idle") {
           synth.cancel();
-          utterThis.text = text;
+          let words = text.split(" ").filter((x) => x != "");
+          let speech = "";
+          words.forEach((word) => {
+            speech += word + " ";
+            if (
+              (speech.length > 150 && correctEndPunctation(speech)) ||
+              speech.length > 200 ||
+              words.length == 0
+            ) {
+              speeches.push(speech);
+              speech = "";
+            }
+          });
+          utterThis.text = speeches.shift();
           synth.speak(utterThis);
           if (lastButtonPressed != null) {
             lastButtonPressed.setAttribute("data-state", "idle");
@@ -126,9 +136,15 @@ function renderPlayer(config = {}) {
 
     utterThis.onend = () => {
       console.log("Speech ended.");
-      lastButtonPressed.setAttribute("data-state", "idle");
-      lastButtonPressed.innerHTML = "";
-      lastButtonPressed.appendChild(lastButtonPressedSvg);
+      if (speeches.length > 0) {
+        utterThis.text = speeches.shift();
+        synth.speak(utterThis);
+      } else {
+        lastButtonPressed.setAttribute("data-state", "idle");
+        lastButtonPressed.innerHTML = "";
+        lastButtonPressed.appendChild(lastButtonPressedSvg);
+        unfinishedSpeech = false;
+      }
     };
 
     utterThis.onerror = (event) => {
@@ -197,9 +213,9 @@ function renderPlayer(config = {}) {
       const maxButtonRight = window.innerWidth - 30;
       let buttonLeft;
       if (textWidth < heading.clientWidth) {
-        buttonLeft = getTextWidth(heading) + 14;
+        buttonLeft = getTextWidth(heading) + 14 + heading.offsetLeft;
       } else {
-        buttonLeft = heading.clientWidth + 14;
+        buttonLeft = heading.clientWidth + 14 + heading.offsetLeft;
       }
       button.style.left = Math.min(buttonLeft, maxButtonRight) + "px";
 
@@ -293,6 +309,51 @@ function renderPlayer(config = {}) {
 
     style.textContent = cssRules;
     document.head.appendChild(style);
+
+    function getTextFromElement(element) {
+      let isHeadingElemnt = false;
+      if (element && element.tagName) {
+        isHeadingElemnt = config.targetHeadings.some(
+          (x) => x.toLowerCase() === element.tagName.toLowerCase()
+        );
+      }
+      if (element.nodeType === Node.TEXT_NODE) {
+        return { text: element.textContent.trim(), headindFound: false };
+      } else if (isHeadingElemnt) {
+        return { text: "", headindFound: true };
+      } else {
+        let text = "";
+        let result = { headindFound: false };
+        for (let child of element.childNodes) {
+          result = getTextFromElement(child);
+          if (result.headindFound) {
+            break;
+          } else {
+            if (result.text.trim() != "") {
+              text += " " + result.text;
+            }
+          }
+        }
+        if (
+          (element.tagName == "LI" || element.tagName == "P") &&
+          !correctEndPunctation(text)
+        ) {
+          text += ".";
+        }
+        if (element.tagName == "BUTTON") {
+          text = "(Button): " + text;
+        }
+        if (element.tagName == "A") {
+          // TODO: specify where the link is refering to.
+          text = "(Link): " + text;
+        }
+        return { text, headindFound: result.headindFound };
+      }
+    }
+
+    function correctEndPunctation(my_string) {
+      return /[.!?:]\s*$/.test(my_string);
+    }
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
