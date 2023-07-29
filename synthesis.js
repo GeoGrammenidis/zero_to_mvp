@@ -1,12 +1,31 @@
-(function () {
+function renderPlayer(config = {}) {
   if ("speechSynthesis" in window) {
+    config = {
+      targetHeadings: ["h1", "h2", "h3", "h4", "h5", "h6"],
+      targetTextElements: ["p"],
+      colors: {
+        100: "#e6f4fa",
+        200: "#c6e9f7",
+        300: "#91d5f2",
+        400: "#6bc6ed",
+        500: "#35b2e8",
+        600: "#279ccf",
+        700: "#1b85b2",
+        800: "#0d5d80",
+        900: "#00364d",
+      },
+      pitch: 1,
+      rate: 1.2,
+      voice: "Google UK English Male",
+      ...config,
+    };
     const synth = window.speechSynthesis;
     const utterThis = new SpeechSynthesisUtterance("Default text");
 
     let unfinishedCode = false;
     let lastButtonPressed = null;
     let lastButtonPressedSvg = null;
-    let headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
+    let headings = document.querySelectorAll(config.targetHeadings.join(", "));
     let buttons = [];
     let texts = [];
     headings.forEach((heading, i) => {
@@ -26,12 +45,20 @@
       let nextSibling = heading;
       while (nextSibling.nextElementSibling) {
         nextSibling = nextSibling.nextElementSibling;
-        if (nextSibling.tagName == "P") {
+        if (
+          config.targetTextElements.some(
+            (x) => x.toLowerCase() == nextSibling.tagName.toLowerCase()
+          )
+        ) {
           let text = nextSibling.textContent.trim();
           if (text) {
             texts[i] += `\n${text}`;
           }
-        } else if (/^H[1-6]$/i.test(nextSibling.tagName)) {
+        } else if (
+          config.targetHeadings.some(
+            (x) => x.toLowerCase() == nextSibling.tagName.toLowerCase()
+          )
+        ) {
           break;
         }
       }
@@ -89,8 +116,8 @@
       utterThis.voice = synth
         .getVoices()
         .find((voice) => voice.name === "Google UK English Male");
-      utterThis.pitch = 1;
-      utterThis.rate = 1.2;
+      utterThis.pitch = config.pitch;
+      utterThis.rate = config.rate;
     };
 
     utterThis.onstart = () => {
@@ -177,7 +204,6 @@
       button.style.left = Math.min(buttonLeft, maxButtonRight) + "px";
 
       let buttonHeight = 24;
-      // TODO: on resize this may change.make sure that it works as it should.
       button.style.transform = `translateY(${
         (heading.clientHeight - buttonHeight) / 2
       }px)`;
@@ -206,68 +232,68 @@
     // CSS rules
     const style = document.createElement("style");
     const cssRules = `
-            :root {
-                --synthesis-brand-100: #e6f4fa;
-                --synthesis-brand-200: #c6e9f7;
-                --synthesis-brand-300: #91d5f2;
-                --synthesis-brand-400: #6bc6ed;
-                --synthesis-brand-500: #35b2e8;
-                --synthesis-brand-600: #279ccf;
-                --synthesis-brand-700: #1b85b2;
-                --synthesis-brand-800: #0d5d80;
-                --synthesis-brand-900: #00364d;
-            }
-
-            .synthesis_player_btn {
-                position: absolute;
-                background-color: var(--synthesis-brand-500);
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                border: 2px solid var(--synthesis-brand-600);
-                opacity: 0.75;
-            }
-
-            .synthesis_player_btn svg,
-            .synthesis_player_btn svg {
-                position: absolute;
-                left: 50%;
-                top: 50%;
-                transform: translate(-50%, -50%);
-                fill: var(--synthesis-brand-100);
-            }
-
-            .synthesis_player_btn:not([data-state="playing"]) svg {
-                left: calc(50% + 1px);
-            }
-
-            .synthesis_player_btn:hover,
-            .synthesis_player_btn:hover {
-                background-color: var(--synthesis-brand-600);
-                border-color: var(--synthesis-brand-700);
-                cursor: pointer;
-                opacity: 1;
-                transition: 0.25s opacity, 0.25s background-color;
-            }
-
-            .synthesis_player_btn:active,
-            .synthesis_player_btn:active {
-                background-color: var(--synthesis-brand-800);
-                border-color: var(--synthesis-brand-800);
-            }
-
-            .synthesis_player_btn[data-state="playing"],
-            .synthesis_player_btn[data-state="playing"],
-            .synthesis_player_btn[data-state="pause"],
-            .synthesis_player_btn[data-state="pause"] {
-                background-color: var(--synthesis-brand-700);
-                border-color: var(--synthesis-brand-800);
-            }
-        `;
+              :root {
+                  --synthesis-brand-100: ${config.colors[100]};
+                  --synthesis-brand-200: ${config.colors[200]};
+                  --synthesis-brand-300: ${config.colors[300]};
+                  --synthesis-brand-400: ${config.colors[400]};
+                  --synthesis-brand-500: ${config.colors[500]};
+                  --synthesis-brand-600: ${config.colors[600]};
+                  --synthesis-brand-700: ${config.colors[700]};
+                  --synthesis-brand-800: ${config.colors[800]};
+                  --synthesis-brand-900: ${config.colors[900]};
+              }
+  
+              .synthesis_player_btn {
+                  position: absolute;
+                  background-color: var(--synthesis-brand-500);
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  border: 2px solid var(--synthesis-brand-600);
+                  opacity: 0.75;
+              }
+  
+              .synthesis_player_btn svg,
+              .synthesis_player_btn svg {
+                  position: absolute;
+                  left: 50%;
+                  top: 50%;
+                  transform: translate(-50%, -50%);
+                  fill: var(--synthesis-brand-100);
+              }
+  
+              .synthesis_player_btn:not([data-state="playing"]) svg {
+                  left: calc(50% + 1px);
+              }
+  
+              .synthesis_player_btn:hover,
+              .synthesis_player_btn:hover {
+                  background-color: var(--synthesis-brand-600);
+                  border-color: var(--synthesis-brand-700);
+                  cursor: pointer;
+                  opacity: 1;
+                  transition: 0.25s opacity, 0.25s background-color;
+              }
+  
+              .synthesis_player_btn:active,
+              .synthesis_player_btn:active {
+                  background-color: var(--synthesis-brand-800);
+                  border-color: var(--synthesis-brand-800);
+              }
+  
+              .synthesis_player_btn[data-state="playing"],
+              .synthesis_player_btn[data-state="playing"],
+              .synthesis_player_btn[data-state="pause"],
+              .synthesis_player_btn[data-state="pause"] {
+                  background-color: var(--synthesis-brand-700);
+                  border-color: var(--synthesis-brand-800);
+              }
+          `;
 
     style.textContent = cssRules;
     document.head.appendChild(style);
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
-})();
+}

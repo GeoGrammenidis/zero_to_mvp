@@ -65,6 +65,7 @@ To run the project
      2. save null in a elementPlaying variable.
    - on onstart if property pending from the `SpeechSynthesisUtterance` object is true throw an error for now. This happens probably because something else currently is using the speech API in the website. TODO: handle this case.
 10. removed buttons from html and with javascript rendered the buttons and targeted the elements using the siblings.
+11. a `renderPlayer` function with a config object as parameter is created. Default configurations added.
 
 ### Level 0 - styling
 
