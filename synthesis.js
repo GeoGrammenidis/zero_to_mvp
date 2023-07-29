@@ -203,6 +203,70 @@
         positionButton(button, headings[i]);
       });
     });
+    // CSS rules
+    const style = document.createElement("style");
+    const cssRules = `
+            :root {
+                --synthesis-brand-100: #e6f4fa;
+                --synthesis-brand-200: #c6e9f7;
+                --synthesis-brand-300: #91d5f2;
+                --synthesis-brand-400: #6bc6ed;
+                --synthesis-brand-500: #35b2e8;
+                --synthesis-brand-600: #279ccf;
+                --synthesis-brand-700: #1b85b2;
+                --synthesis-brand-800: #0d5d80;
+                --synthesis-brand-900: #00364d;
+            }
+
+            .synthesis_player_btn {
+                position: absolute;
+                background-color: var(--synthesis-brand-500);
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                border: 2px solid var(--synthesis-brand-600);
+                opacity: 0.75;
+            }
+
+            .synthesis_player_btn svg,
+            .synthesis_player_btn svg {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                fill: var(--synthesis-brand-100);
+            }
+
+            .synthesis_player_btn:not([data-state="playing"]) svg {
+                left: calc(50% + 1px);
+            }
+
+            .synthesis_player_btn:hover,
+            .synthesis_player_btn:hover {
+                background-color: var(--synthesis-brand-600);
+                border-color: var(--synthesis-brand-700);
+                cursor: pointer;
+                opacity: 1;
+                transition: 0.25s opacity, 0.25s background-color;
+            }
+
+            .synthesis_player_btn:active,
+            .synthesis_player_btn:active {
+                background-color: var(--synthesis-brand-800);
+                border-color: var(--synthesis-brand-800);
+            }
+
+            .synthesis_player_btn[data-state="playing"],
+            .synthesis_player_btn[data-state="playing"],
+            .synthesis_player_btn[data-state="pause"],
+            .synthesis_player_btn[data-state="pause"] {
+                background-color: var(--synthesis-brand-700);
+                border-color: var(--synthesis-brand-800);
+            }
+        `;
+
+    style.textContent = cssRules;
+    document.head.appendChild(style);
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
