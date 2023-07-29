@@ -326,10 +326,14 @@ function renderPlayer(config = {}) {
     function getTextFromElement(element, firstHeading = false) {
       let isHeadingElemnt = false;
       if (element && element.tagName) {
+        if (element.tagName == "SCRIPT") {
+          return { text: "", headindFound: false };
+        }
         isHeadingElemnt = config.targetHeadings.some(
           (x) => x.toLowerCase() === element.tagName.toLowerCase()
         );
       }
+
       if (element.nodeType === Node.TEXT_NODE) {
         return { text: element.textContent.trim(), headindFound: false };
       } else if (isHeadingElemnt && !firstHeading) {
