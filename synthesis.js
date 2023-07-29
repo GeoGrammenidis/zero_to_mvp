@@ -4,6 +4,44 @@
     const utterThis = new SpeechSynthesisUtterance("Default text");
     let unfinishedCode = false;
     let lastButtonPressed = null;
+    let headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
+    let buttons = [];
+    let texts = [];
+    headings.forEach((heading, i) => {
+      // create and render the button
+      const newButton = document.createElement("button");
+      newButton.textContent = "Play";
+      newButton.setAttribute("data-state", "idle");
+      parentNode = heading.parentNode;
+      parentNode.insertBefore(newButton, heading);
+      buttons.push(newButton);
+      // prepare the text for the speech
+      texts.push(heading.textContent);
+      let nextSibling = heading;
+      while (nextSibling.nextElementSibling) {
+        nextSibling = nextSibling.nextElementSibling;
+        if (nextSibling.tagName == "P") {
+          let text = nextSibling.textContent.trim();
+          if (text) {
+            texts[i] += `\n${text}`;
+          }
+        } else if (/^H[1-6]$/i.test(nextSibling.tagName)) {
+          break;
+        }
+      }
+      // add event listener
+      newButton.addEventListener("click", async (e) => {
+        if (unfinishedCode) {
+          console.log(
+            "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
+          );
+          return;
+        }
+        await stateHandler(e.target, texts[i]);
+      });
+    });
+    console.log("texts prepared:", texts);
+
     function stateHandler(element, text = "") {
       return new Promise((resolve) => {
         unfinishedCode = true;
@@ -33,40 +71,6 @@
         resolve();
       });
     }
-    // ------- button event listeners
-    document
-      .getElementById("clickable_1")
-      .addEventListener("click", async (e) => {
-        if (unfinishedCode) {
-          console.log(
-            "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
-          );
-          return;
-        }
-        await stateHandler(
-          e.target,
-          document.getElementById("heading_1").innerHTML +
-            ". " +
-            document.getElementById("paragraph_1").innerHTML
-        );
-      });
-
-    document
-      .getElementById("clickable_2")
-      .addEventListener("click", async (e) => {
-        if (unfinishedCode) {
-          console.log(
-            "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
-          );
-          return;
-        }
-        await stateHandler(
-          e.target,
-          document.getElementById("heading_2").innerHTML +
-            ". " +
-            document.getElementById("paragraph_2").innerHTML
-        );
-      });
 
     // synth events
     synth.onvoiceschanged = () => {

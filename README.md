@@ -64,6 +64,7 @@ To run the project
      1. if elementPlaying isn't null then update the data-state from it to idle.
      2. save null in a elementPlaying variable.
    - on onstart if property pending from the `SpeechSynthesisUtterance` object is true throw an error for now. This happens probably because something else currently is using the speech API in the website. TODO: handle this case.
+10. removed buttons from html and with javascript rendered the buttons and targeted the elements using the siblings.
 
 ## TODO list
 
