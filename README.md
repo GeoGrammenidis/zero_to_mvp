@@ -46,9 +46,28 @@ To run the project
    - pause boolean stays false even after pause function is called.
    - So for the state we won't rely on them. We can rey on the button click event for pause / resume.
 8. an other issue was found. sometimes cancel button needs to be pressed, even if nothing is currently playing. So before playing anything new, it would be a good idea to preactively cancel. In future steps I will keep in mind that onerror will fire on cancel as well.
+9. the widget state should be based on click events.
+   - clicked while in data-state of the button is idle
+     1. call cancel method from the `SpeechSynthesisUtterance` object. In case something is already playing it should stop. This is done to avoid a bug which sometimes requires to call the cancel method before the player is again available.
+     2. handle the expected triggered error for this cancel method.
+     3. update the text property from the `SpeechSynthesisUtterance` object
+     4. call speak method from the `SpeechSynthesisUtterance` object.
+     5. update buttons content & data-state to "playing"
+     6. save button element in a elementPlaying variable.
+   - clicked while in data-state of the button is playing
+     1. call pause method from the `SpeechSynthesisUtterance` object.
+     2. update buttons content & data-state to "paused"
+   - clicked while in data-state of the button is "paused"
+     1. call resume method from the `SpeechSynthesisUtterance` object.
+     2. update buttons content & data-state to "playing"
+   - on events onerror, onend,
+     1. if elementPlaying isn't null then update the data-state from it to idle.
+     2. save null in a elementPlaying variable.
+   - on onstart if property pending from the `SpeechSynthesisUtterance` object is true throw an error for now. This happens probably because something else currently is using the speech API in the website. This case will be handled later.
 
 ## TODO list
 
 - impliment something simple based on what I have studied for level zero.
 - check and update [package.json](./package.json)
 - don't forget to make a renderPlayer function to render the player as asked
+- handle the case in which when onstart event is fired, property pending from the `SpeechSynthesisUtterance` object is true

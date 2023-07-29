@@ -4,9 +4,11 @@
     if (paused) {
       document.getElementById("state").innerHTML = "paused";
     } else if (synth.speaking) {
-      document.getElementById("state").innerHTML = "speaking";
-    } else if (synth.pending) {
-      document.getElementById("state").innerHTML = "loading";
+      if (synth.pending) {
+        document.getElementById("state").innerHTML = "speaking & pending.";
+      } else {
+        document.getElementById("state").innerHTML = "speaking";
+      }
     } else {
       document.getElementById("state").innerHTML = "no state";
     }
@@ -24,6 +26,7 @@
         ". " +
         document.getElementById("paragraph_1").innerHTML;
       synth.speak(utterThis);
+      updateState(synth, "state changed in button 1 clicked");
     });
 
     document.getElementById("clickable_2").addEventListener("click", () => {
@@ -32,6 +35,7 @@
         ". " +
         document.getElementById("paragraph_2").innerHTML;
       synth.speak(utterThis);
+      updateState(synth, "state changed in button 2 clicked");
     });
 
     document.getElementById("pause_button").addEventListener("click", () => {
@@ -76,19 +80,19 @@
       updateState(synth, "state changed in onerror");
     };
 
-    // won't be used. Issue on chrome, event never fired.
+    // // won't be used. Issue on chrome, event never fired.
     // utterThis.onpause = (event) => {
     //   console.log(`Speech paused after ${event.elapsedTime} seconds.`);
     //   updateState(synth, "state changed in onpause");
     // };
 
-    // won't be used. Issue on chrome, event never fired.
+    // // won't be used. Issue on chrome, event never fired.
     // utterThis.onresume = (event) => {
     //   console.log(`Speech paused after ${event.elapsedTime} seconds.`);
     //   updateState(synth, "state changed in onresume");
     // };
 
-    // won't be used. Issue on chrome, event never fired.
+    // // won't be used. Issue on chrome, event never fired.
     // utterThis.onboundary = (event) => {
     //   console.log(
     //     `${event.name} boundary reached after ${event.elapsedTime} seconds.`
