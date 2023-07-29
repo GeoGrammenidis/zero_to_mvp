@@ -1,58 +1,72 @@
 (function () {
-  let updateState = (synth, message, paused = false) => {
-    // synth.paused wasn't used because there is an issue in crhome with it.
-    if (paused) {
-      document.getElementById("state").innerHTML = "paused";
-    } else if (synth.speaking) {
-      if (synth.pending) {
-        document.getElementById("state").innerHTML = "speaking & pending.";
-      } else {
-        document.getElementById("state").innerHTML = "speaking";
-      }
-    } else {
-      document.getElementById("state").innerHTML = "no state";
-    }
-    console.log(message);
-  };
-
   if ("speechSynthesis" in window) {
     const synth = window.speechSynthesis;
     const utterThis = new SpeechSynthesisUtterance("Default text");
-
+    let unfinishedCode = false;
+    let lastButtonPressed = null;
+    function stateHandler(element, text = "") {
+      return new Promise((resolve) => {
+        unfinishedCode = true;
+        if (element.getAttribute("data-state") == "idle") {
+          synth.cancel();
+          utterThis.text = text;
+          synth.speak(utterThis);
+          if (lastButtonPressed != null) {
+            lastButtonPressed.setAttribute("data-state", "idle");
+            lastButtonPressed.innerHTML = "Play";
+          }
+          element.setAttribute("data-state", "playing");
+          element.innerHTML = "Pause";
+          lastButtonPressed = element;
+        } else if (element.getAttribute("data-state") == "playing") {
+          synth.pause();
+          element.setAttribute("data-state", "pause");
+          element.innerHTML = "Play";
+        } else if (element.getAttribute("data-state") == "pause") {
+          synth.resume();
+          element.setAttribute("data-state", "playing");
+          element.innerHTML = "Pause";
+        } else {
+          throw Error("data-state has unexpected value.");
+        }
+        unfinishedCode = false;
+        resolve();
+      });
+    }
     // ------- button event listeners
-    document.getElementById("clickable_1").addEventListener("click", () => {
-      utterThis.text =
-        document.getElementById("heading_1").innerHTML +
-        ". " +
-        document.getElementById("paragraph_1").innerHTML;
-      synth.speak(utterThis);
-      updateState(synth, "state changed in button 1 clicked");
-    });
+    document
+      .getElementById("clickable_1")
+      .addEventListener("click", async (e) => {
+        if (unfinishedCode) {
+          console.log(
+            "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
+          );
+          return;
+        }
+        await stateHandler(
+          e.target,
+          document.getElementById("heading_1").innerHTML +
+            ". " +
+            document.getElementById("paragraph_1").innerHTML
+        );
+      });
 
-    document.getElementById("clickable_2").addEventListener("click", () => {
-      utterThis.text =
-        document.getElementById("heading_2").innerHTML +
-        ". " +
-        document.getElementById("paragraph_2").innerHTML;
-      synth.speak(utterThis);
-      updateState(synth, "state changed in button 2 clicked");
-    });
-
-    document.getElementById("pause_button").addEventListener("click", () => {
-      synth.pause();
-      console.log(`Speech paused after ??? seconds.`);
-      updateState(synth, "state changed in pause_button click event", true);
-    });
-
-    document.getElementById("resume_button").addEventListener("click", () => {
-      synth.resume();
-      console.log(`Speech paused after ??? seconds.`);
-      updateState(synth, "state changed in resume_button click event");
-    });
-
-    document.getElementById("cancel_button").addEventListener("click", () => {
-      synth.cancel();
-    });
+    document
+      .getElementById("clickable_2")
+      .addEventListener("click", async (e) => {
+        if (unfinishedCode) {
+          console.log(
+            "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
+          );
+          return;
+        }
+        await stateHandler(
+          e.target,
+          document.getElementById("heading_2").innerHTML +
+            ". " +
+            document.getElementById("paragraph_2").innerHTML
+        );
+      });
 
     // synth events
     synth.onvoiceschanged = () => {
@@ -62,34 +76,30 @@
         .find((voice) => voice.name === "Google UK English Male");
       utterThis.pitch = 1;
       utterThis.rate = 1.2;
-      updateState(synth, "state changed in onvoiceschanged");
     };
 
     utterThis.onstart = () => {
       console.log("Speech started.");
-      updateState(synth, "state changed in onstart");
     };
 
     utterThis.onend = () => {
       console.log("Speech ended.");
-      updateState(synth, "state changed in oneend");
+      lastButtonPressed.setAttribute("data-state", "idle");
+      lastButtonPressed.innerHTML = "Play";
     };
 
     utterThis.onerror = (event) => {
       console.error("Error occurred:", event.error);
-      updateState(synth, "state changed in onerror");
     };
 
     // // won't be used. Issue on chrome, event never fired.
     // utterThis.onpause = (event) => {
     //   console.log(`Speech paused after ${event.elapsedTime} seconds.`);
-    //   updateState(synth, "state changed in onpause");
     // };
 
     // // won't be used. Issue on chrome, event never fired.
     // utterThis.onresume = (event) => {
     //   console.log(`Speech paused after ${event.elapsedTime} seconds.`);
-    //   updateState(synth, "state changed in onresume");
     // };
 
     // // won't be used. Issue on chrome, event never fired.
