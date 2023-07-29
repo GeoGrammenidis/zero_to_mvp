@@ -66,6 +66,15 @@ To run the project
    - on onstart if property pending from the `SpeechSynthesisUtterance` object is true throw an error for now. This happens probably because something else currently is using the speech API in the website. TODO: handle this case.
 10. removed buttons from html and with javascript rendered the buttons and targeted the elements using the siblings.
 
+### Level 0 - styling
+
+1. used tool [icomoon](https://icomoon.io/) to create and download pause & play svg.
+2. for each button, created a pause and a play svg element
+3. removed the contents of each button and then appended the svg as a child. Did the same thing when the button must change svg icon because of the state of the button. Always used the same svgs to avoid the constant creation of elements with each state change.
+4. to make the buttons easily found with CSS a class `synthesis_player_btn` was added
+5. for now created some styles and imported them for our buttons.
+6. for the position of the button, calculations were needed with the help of a temporary off-screen element.
+
 ## TODO list
 
 - impliment something simple based on what I have studied for level zero.
