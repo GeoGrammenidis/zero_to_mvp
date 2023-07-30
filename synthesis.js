@@ -1,3 +1,4 @@
+import customLogger from "./logger.js";
 function renderPlayer(config = {}) {
   if ("speechSynthesis" in window) {
     config = {
@@ -19,11 +20,23 @@ function renderPlayer(config = {}) {
       rate: 1.2,
       voiceName: "Google UK English Male",
       ignoredClasses: ["visually-hidden"],
+      logger: {
+        info: true,
+        warn: true,
+        err: true,
+        state: true,
+        dom: true,
+        synth: true,
+        button: true,
+        colored: false,
+      },
       ...config,
     };
-
+    const { logger } = customLogger(config.logger);
+    logger.info("configurations:", config);
     const synth = window.speechSynthesis;
     synth.cancel();
+    logger.synth("canceled");
     const utterThis = new SpeechSynthesisUtterance("Default text");
 
     // initial values
@@ -36,9 +49,11 @@ function renderPlayer(config = {}) {
       speeches: [], // saves the whole text for each speech.
       speechChunks: [],
     };
+    logger.state("initialized", state);
 
     // adding CSS rules
     document.head.appendChild(createCSSelement());
+    logger.dom("Added inline CSS into head");
 
     // creating button with its own svgs for every heading.
     state.headings.forEach((heading, i) => {
@@ -48,6 +63,10 @@ function renderPlayer(config = {}) {
       // create and render the button
       const newButton = createButton(playSvg);
       styleButton(newButton, heading);
+      logger.info(
+        "created 1 button, 1 play svg & 1 pause svg for heading:",
+        heading
+      );
 
       // prepare the speech
       let speech = getHeadingText(heading);
@@ -61,18 +80,26 @@ function renderPlayer(config = {}) {
           speech += text;
         }
       }
+      logger.info("created speech:", speech);
       // update arrays for buttons and scheeches
       updateState({
         buttons: [...state.buttons, newButton],
         speeches: [...state.speeches, speech],
       });
+      logger.state("updated buttons & speeches", state);
 
       // add event listener
       newButton.addEventListener("click", async (e) => {
         if (state.unfinishedCode) {
-          console.log(
-            "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
-          );
+          if (config.logger) {
+            logger.err(
+              "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
+            );
+          } else {
+            console.error(
+              "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
+            );
+          }
           return;
         }
         let element = e.currentTarget;
@@ -82,17 +109,21 @@ function renderPlayer(config = {}) {
           if (element.getAttribute("data-state") == "idle") {
             // cancel is needed otherwise it may never start in chrome.
             synth.cancel();
+            logger.synth("canceled");
             // we get all the speechChunks for the speech
             let speechChunks = getSpeechChunks(speech);
+            logger.info("prepared speech chunks:", speechChunks);
             // we use the first to be uttered
             utterThis.text = speechChunks.shift(1);
             synth.speak(utterThis);
+            logger.synth("utters:", utterThis.text);
             // we update the state of the button
             updateButton({
               button: element,
               buttonState: "playing",
               buttonPauseSvg: pauseSvg,
             });
+            logger.button("updated button-state to playing");
             // we update into the state:
             // - speechChunks to check them again when the speech ends.
             // - lastButtonPressed to be able to alter the state of it in case of other button being pressed while playing
@@ -104,18 +135,22 @@ function renderPlayer(config = {}) {
             });
           } else if (element.getAttribute("data-state") == "playing") {
             synth.pause();
+            logger.synth("paused");
             updateButton({
               button: element,
               buttonState: "pause",
               buttonPlaySvg: playSvg,
             });
+            logger.button("updated button-state to pause");
           } else if (element.getAttribute("data-state") == "pause") {
             synth.resume();
+            logger.synth("resume");
             updateButton({
               button: element,
               buttonState: "resume",
               buttonPauseSvg: pauseSvg,
             });
+            logger.button("updated button-state to playing(resumed)");
           } else {
             throw Error("data-state has unexpected value.");
           }
@@ -123,10 +158,11 @@ function renderPlayer(config = {}) {
           resolve();
         });
       });
-
+      logger.info("added event listener on button");
       // render the button
-      parentNode = heading.parentNode;
+      let parentNode = heading.parentNode;
       parentNode.insertBefore(newButton, heading);
+      logger.dom("added button");
     });
 
     // ~~~~~~ synth events ~~~~~~
@@ -138,15 +174,22 @@ function renderPlayer(config = {}) {
       if (state.speechChunks.length > 0) {
         utterThis.text = state.speechChunks[0];
         updateState({ speechChunks: state.speechChunks.slice(1) });
+        logger.state("updated speechCunks", state);
         synth.speak(utterThis);
+        logger.synth("utters next available chun:", utterThis.text);
       } else if (isUtteredFromThisSynthesis()) {
         updateButton({ buttonState: "idle" });
-        unfinishedSpeech = false;
+        logger.synth("stopped uttering");
+        logger.button("updated button-state to idle(stopped playing)");
       }
     };
 
     utterThis.onerror = (event) => {
-      console.error("Error occurred:", event.error);
+      if (config.logger) {
+        logger.err("Error occurred:", event.error);
+      } else {
+        console.error("Error occurred:", event.error);
+      }
     };
 
     // ~~~~~~ window events ~~~~~~
@@ -187,6 +230,7 @@ function renderPlayer(config = {}) {
           state.lastButtonPressed.setAttribute("data-state", "idle");
           state.lastButtonPressed.innerHTML = "";
           state.lastButtonPressed.appendChild(state.lastButtonPressedSvg);
+          logger.button("updated button-state to idle(cancelled playing)");
         }
         button.setAttribute("data-state", "playing");
         button.innerHTML = "";
@@ -216,6 +260,11 @@ function renderPlayer(config = {}) {
       config.voiceName = voiceName;
       config.pitch = pitch;
       config.rate = rate;
+      logger.synth("updated voiceName, pitch & rate", {
+        voiceName,
+        pitch,
+        rate,
+      });
     }
 
     // no side effects.
@@ -489,3 +538,4 @@ function renderPlayer(config = {}) {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
 }
+window.renderPlayer = renderPlayer;
