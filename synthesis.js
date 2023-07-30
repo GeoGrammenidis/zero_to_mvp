@@ -30,6 +30,7 @@ function renderPlayer(config = {}) {
         button: true,
         colored: false,
       },
+      playground: false,
       ...config,
     };
     const { logger } = customLogger(config.logger);
@@ -57,6 +58,10 @@ function renderPlayer(config = {}) {
 
     // creating button with its own svgs for every heading.
     state.headings.forEach((heading, i) => {
+      renderButton(heading, i);
+    });
+
+    function renderButton(heading, i) {
       // create svgs for the button.
       let pauseSvg = createSVG("pause");
       let playSvg = createSVG("play");
@@ -74,10 +79,9 @@ function renderPlayer(config = {}) {
       while (nextSibling.nextElementSibling) {
         nextSibling = nextSibling.nextElementSibling;
         const { text, headindFound } = getTextFromElement(nextSibling);
+        speech += text;
         if (headindFound) {
           break;
-        } else {
-          speech += text;
         }
       }
       logger.info("created speech:", speech);
@@ -111,6 +115,7 @@ function renderPlayer(config = {}) {
             synth.cancel();
             logger.synth("canceled");
             // we get all the speechChunks for the speech
+
             let speechChunks = getSpeechChunks(speech);
             logger.info("prepared speech chunks:", speechChunks);
             // we use the first to be uttered
@@ -163,7 +168,7 @@ function renderPlayer(config = {}) {
       let parentNode = heading.parentNode;
       parentNode.insertBefore(newButton, heading);
       logger.dom("added button");
-    });
+    }
 
     // ~~~~~~ synth events ~~~~~~
     synth.onvoiceschanged = () => {
@@ -327,6 +332,7 @@ function renderPlayer(config = {}) {
         pathElement.setAttribute("d", "M4 4h10v24h-10zM18 4h10v24h-10z");
       }
       svgElement.appendChild(pathElement);
+      svgElement.classList.add("synthesis_player_svg");
       return svgElement;
     }
 
@@ -386,7 +392,7 @@ function renderPlayer(config = {}) {
                   --synthesis-brand-800: ${colors[800]};
                   --synthesis-brand-900: ${colors[900]};
               }
-  
+
               .synthesis_player_btn {
                   position: absolute;
                   background-color: var(--synthesis-brand-500);
@@ -396,9 +402,8 @@ function renderPlayer(config = {}) {
                   border: 2px solid var(--synthesis-brand-600);
                   opacity: 0.75;
                   transition: 0.25s opacity, 0.25s background-color;
-                  z-index: 10000;
               }
-  
+
               .synthesis_player_btn svg,
               .synthesis_player_btn svg {
                   position: absolute;
@@ -407,11 +412,11 @@ function renderPlayer(config = {}) {
                   transform: translate(-50%, -50%);
                   fill: var(--synthesis-brand-100);
               }
-  
+
               .synthesis_player_btn:not([data-state="playing"]) svg {
                   left: calc(50% + 1px);
               }
-  
+
               .synthesis_player_btn:hover,
               .synthesis_player_btn:hover {
                   background-color: var(--synthesis-brand-600);
@@ -419,13 +424,13 @@ function renderPlayer(config = {}) {
                   cursor: pointer;
                   opacity: 1;
               }
-  
+
               .synthesis_player_btn:active,
               .synthesis_player_btn:active {
                   background-color: var(--synthesis-brand-800);
                   border-color: var(--synthesis-brand-800);
               }
-  
+
               .synthesis_player_btn[data-state="playing"],
               .synthesis_player_btn[data-state="playing"],
               .synthesis_player_btn[data-state="pause"],
@@ -476,31 +481,28 @@ function renderPlayer(config = {}) {
 
     // no side effects, TODO: break this function to smaller ones.
     function getTextFromElement(element, firstHeading = false) {
-      let isHeadingElemnt = false;
       if (element && element.tagName) {
-        if (element.tagName == "SCRIPT") {
+        if (
+          element.tagName == "SCRIPT" ||
+          element.classList.contains("synthesis_player_btn")
+        ) {
           return { text: "", headindFound: false };
         }
-        isHeadingElemnt = config.targetHeadings.some(
-          (x) => x.toLowerCase() === element.tagName.toLowerCase()
-        );
       }
-
       if (element.nodeType === Node.TEXT_NODE) {
         return { text: element.textContent.trim(), headindFound: false };
-      } else if (isHeadingElemnt && !firstHeading) {
+      } else if (isHeadingElement(element) && !firstHeading) {
         return { text: "", headindFound: true };
       } else {
         let text = "";
         let result = { headindFound: false };
         for (let child of element.childNodes) {
           result = getTextFromElement(child);
+          if (result.text.trim() != "") {
+            text += " " + result.text;
+          }
           if (result.headindFound) {
             break;
-          } else {
-            if (result.text.trim() != "") {
-              text += " " + result.text;
-            }
           }
         }
         if (
@@ -534,6 +536,308 @@ function renderPlayer(config = {}) {
         styles.opacity !== "0"
       );
     }
+
+    // no side effects
+    function isHeadingElement(element, targetHeadings = config.targetHeadings) {
+      return (
+        element &&
+        element.tagName &&
+        targetHeadings.some(
+          (x) => x.toLowerCase() === element.tagName.toLowerCase()
+        )
+      );
+    }
+
+    // ~~~~~~ for DOM mutation. ~~~~~~
+    function findClosestHeading(element) {
+      if (isHeadingElement(element)) {
+        return element;
+      }
+      let descendantHeading = findHeadingDescendant(element);
+      if (descendantHeading) {
+        return descendantHeading;
+      }
+      let sibling = element;
+      while (sibling) {
+        sibling = sibling.previousElementSibling;
+        if (sibling) {
+          if (isHeadingElement(sibling)) {
+            break;
+          }
+        } else {
+          sibling = sibling?.parentNode;
+          if (sibling === document.body || sibling == undefined) {
+            sibling = null;
+            break;
+          }
+        }
+      }
+
+      if (sibling) {
+        let targetOrHeading = findTargetOrHeading(
+          element,
+          sibling.nextElementSibling
+        );
+        if (targetOrHeading != "target") {
+          return null;
+        }
+      }
+
+      return sibling;
+    }
+
+    function findTargetOrHeading(targetElement, currentElement) {
+      if (currentElement === targetElement) {
+        return "target";
+      }
+
+      // Check for children and their descendants
+      let child = currentElement.firstElementChild;
+      while (child) {
+        const result = findTargetOrHeading(targetElement, child);
+        if (result === "target" || result === "heading") {
+          return result;
+        }
+        child = child.nextElementSibling;
+      }
+
+      // Check for heading element
+      if (isHeadingElement(currentElement)) {
+        return "heading";
+      }
+
+      // Check for siblings
+      let sibling = currentElement.nextElementSibling;
+      while (sibling) {
+        const result = findTargetOrHeading(targetElement, sibling);
+        if (result === "target" || result === "heading") {
+          return result;
+        }
+        sibling = sibling.nextElementSibling;
+      }
+      return "not found";
+    }
+
+    function findHeadingDescendant(element) {
+      if (!element) {
+        logger.warn("parameter given into findHeadingDeescendant was wrong.");
+        return null;
+      }
+      let currentElement = element.parentElement;
+      while (currentElement) {
+        if (isHeadingElement(currentElement)) {
+          return currentElement; // Found a heading descendant, return it
+        }
+        currentElement = currentElement.parentElement;
+      }
+      return null; // No heading descendant found, return null
+    }
+    if (config.playground) {
+      console.log(
+        "change_element",
+        findClosestHeading(document.querySelector("#change_element"))
+      );
+      console.log(
+        "trace_1",
+        findClosestHeading(document.querySelector("#trace_1"))
+      );
+
+      console.log(
+        "trace_2",
+        findClosestHeading(document.querySelector("#trace_2"))
+      );
+      console.log(
+        "trace_3",
+        findClosestHeading(document.querySelector("#trace_3"))
+      );
+      console.log(
+        "trace_4",
+        findClosestHeading(document.querySelector("#trace_4"))
+      );
+    }
+
+    // Function to handle DOM mutations
+    const handleMutation = (mutationsList, observer) => {
+      for (const mutation of mutationsList) {
+        const headingsToUpdate = new Set(); // may have new headings as well
+        const headingsToRemove = new Set(); // may have headings that are not tracked.
+        if (mutation.type === "childList") {
+          let addedNodes = Array(...mutation.addedNodes)
+            .filter((node) => {
+              return node instanceof Element;
+            })
+            .filter(
+              (element) =>
+                element.style.visibility != "hidden" &&
+                !element.classList.contains("synthesis_player_btn") &&
+                !element.classList.contains("synthesis_player_svg")
+            );
+          let removedNodes = Array(...mutation.removedNodes)
+            .filter((node) => node instanceof Element)
+            .filter(
+              (element) =>
+                element.style.visibility != "hidden" &&
+                !element.classList.contains("synthesis_player_btn") &&
+                !element.classList.contains("synthesis_player_svg")
+            );
+          let addedTexts = Array(...mutation.removedNodes).filter(
+            (node) => node instanceof Text
+          );
+          if (addedNodes.length > 0) {
+            logger.dom("Element(s) added:", addedNodes);
+            // TODO: check that this works as it should
+            addedNodes.forEach((node) => {
+              headingsToUpdate.add(findClosestHeading(node));
+              if (isHeadingElement(node)) {
+                if (node.previousSibling) {
+                  if (node.previousSibling instanceof Text) {
+                    headingsToUpdate.add(
+                      findClosestHeading(node.previousSibling.parentElement)
+                    );
+                  } else {
+                    headingsToUpdate.add(
+                      findClosestHeading(node.previousSibling)
+                    );
+                  }
+                } else {
+                  headingsToUpdate.add(findClosestHeading(node.parentElement));
+                }
+              }
+            });
+          }
+          if (removedNodes.length > 0) {
+            logger.dom("Element(s) removed:", removedNodes);
+            removedNodes.forEach((node) => {
+              let foundHeading = false;
+              // TODO: check this
+              node
+                .querySelectorAll(config.targetHeadings.join(", "))
+                .forEach((x, i) => {
+                  if (i == 0) {
+                    foundHeading = true;
+                    let indexStateHeading = state.headings.findIndex(
+                      (y) => x == y
+                    );
+                    if (indexStateHeading > 0) {
+                      headingsToUpdate.add(
+                        state.headings[indexStateHeading - 1]
+                      );
+                    }
+                  }
+                  headingsToRemove.add(x);
+                });
+              // TODO: check this
+              if (!foundHeading) {
+                state.speeches
+                  .map((x, i) => ({ value: x, index: i }))
+                  .filter(
+                    (x) =>
+                      x.value.indexOf(getTextFromElement(node).text.trim()) !=
+                      -1
+                  )
+                  .forEach((x) =>
+                    headingsToUpdate.add(state.headings[x.index])
+                  );
+              }
+            });
+          }
+          // we don't care fore removedTexts because even when removed new ones are added even if the new text is empty string
+          if (addedTexts.length > 0) {
+            logger.dom("Texts(s) added:", addedTexts);
+            if (mutation.target instanceof Element) {
+              headingsToUpdate.add(findClosestHeading(mutation.target));
+            }
+            // TODO: not sure if it can be anything else. Check it.
+          }
+        } else if (mutation.type === "characterData") {
+          // TODO: check this.
+          console.warn(
+            "Carefull! this is unhandled. Text changed:",
+            mutation.target.textContent
+          );
+        }
+        headingsToUpdate.delete(null);
+        if (headingsToUpdate.size > 0) {
+          logger.dom("headingsToUpdate:", headingsToUpdate);
+          let newStateSpeeches = [...state.speeches];
+          headingsToUpdate.forEach((heading) => {
+            let speech = getHeadingText(heading);
+            let nextSibling = heading;
+            while (nextSibling.nextElementSibling) {
+              nextSibling = nextSibling.nextElementSibling;
+              const { text, headindFound } = getTextFromElement(nextSibling);
+              speech += text;
+              if (headindFound) {
+                break;
+              }
+            }
+            logger.info("created speech:", speech);
+            let indexReturned = state.headings.findIndex((x) => x == heading);
+            if (indexReturned > 0) {
+              newStateSpeeches[indexReturned] = speech;
+            } else {
+              updateState({ headings: [...state.headings, heading] });
+              renderButton(heading, state.headings.length - 1);
+              newStateSpeeches.push(state.speeches.slice(-1)[0]);
+            }
+          });
+          updateState({ speeches: newStateSpeeches });
+        }
+        headingsToRemove.delete(null);
+        if (headingsToRemove.size > 0) {
+          logger.dom("headingsToRemove:", headingsToRemove);
+          let indexesToRemove = [];
+          headingsToRemove.forEach((heading) => {
+            indexesToRemove.push(state.headings.findIndex((x) => x == heading));
+          });
+          let newButtons;
+          let newSpeeches;
+          let newHeadings;
+          indexesToRemove
+            .sort()
+            .reverse()
+            .forEach((index) => {
+              state.buttons[index].remove();
+              newButtons = [
+                ...state.buttons.slice(0, index),
+                ...state.buttons.slice(index + 1),
+              ];
+              newSpeeches = [
+                ...state.speeches.slice(0, index),
+                ...state.speeches.slice(index + 1),
+              ];
+              newHeadings = [
+                ...state.headings.slice(0, index),
+                ...state.headings.slice(index + 1),
+              ];
+            });
+          updateState({
+            buttons: newButtons,
+            speeches: newSpeeches,
+            headings: newHeadings,
+          });
+        }
+      }
+    };
+
+    // Options for the MutationObserver
+    const observerOptions = {
+      childList: true, // Observes changes to the list of children of the target node.
+      subtree: true, // Observes changes to the entire subtree of the target node.
+      characterData: true, // Observes changes to the value of text nodes.
+      characterDataOldValue: true, // Records the previous value of text nodes when changed.
+      attributeOldValue: true, // Records the previous value of attributes when changed.
+      attributes: true, // Observes changes to attributes.
+    };
+
+    // Create a new MutationObserver
+    const observer = new MutationObserver(handleMutation);
+
+    // Target element to observe
+    const target = document.body; // You can change this to observe a specific element
+
+    // Start observing the target element with the specified options
+    observer.observe(target, observerOptions);
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
