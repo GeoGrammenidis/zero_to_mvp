@@ -15,11 +15,43 @@
 
     <h2>Second Heading Level Zero</h2>
     <p>From zero to MVP as always! Don't forget to drink water!</p>
+    <div class="to_add"></div>
+    <p class="to_remove">An element that can be removed.</p>
+    <p class="to_change">An element that can be changed.</p>
+    <p class="to_change_2">An 2nd element that can be changed.</p>
+    <p class="to_remove">An 2nd element that can be removed.</p>
+    <button id="add_element">add element</button>
+    <button id="remove_element">remove element</button>
+    <button id="change_element">change element</button>
     <script src="synthesis.js" type="module" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         renderPlayer();
       });
+      document.querySelector("#add_element").addEventListener("click", () => {
+        console.log("clicked add");
+        const newParagraph = document.createElement("p");
+        newParagraph.textContent =
+          "This is a new paragraph created with JavaScript!";
+        document.querySelector(".to_add").appendChild(newParagraph);
+      });
+      document
+        .querySelector("#remove_element")
+        .addEventListener("click", () => {
+          console.log("clicked remove");
+          document.querySelector(".to_remove").remove();
+        });
+      document
+        .querySelector("#change_element")
+        .addEventListener("click", () => {
+          console.log("clicked change");
+          document.querySelector(".to_change").innerHTML = "something new!";
+          document.querySelector(".to_change_2").innerHTML = "asd";
+
+          const newSpan = document.createElement("span");
+          newSpan.textContent = "... span text";
+          document.querySelector(".to_change_2").appendChild(newSpan);
+        });
     </script>
   </body>
 </html>

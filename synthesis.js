@@ -21,13 +21,13 @@ function renderPlayer(config = {}) {
       voiceName: "Google UK English Male",
       ignoredClasses: ["visually-hidden"],
       logger: {
-        info: true,
-        warn: true,
-        err: true,
-        state: true,
-        dom: true,
-        synth: true,
-        button: true,
+        info: false,
+        warn: false,
+        err: false,
+        state: false,
+        dom: false,
+        synth: false,
+        button: false,
         colored: false,
       },
       ...config,
@@ -327,6 +327,7 @@ function renderPlayer(config = {}) {
         pathElement.setAttribute("d", "M4 4h10v24h-10zM18 4h10v24h-10z");
       }
       svgElement.appendChild(pathElement);
+      svgElement.classList.add("synthesis_player_svg");
       return svgElement;
     }
 
@@ -539,3 +540,75 @@ function renderPlayer(config = {}) {
   }
 }
 window.renderPlayer = renderPlayer;
+
+// Function to handle DOM mutations
+const handleMutation = (mutationsList, observer) => {
+  for (const mutation of mutationsList) {
+    if (mutation.type === "childList") {
+      let addedNodes = Array(...mutation.addedNodes)
+        .filter((node) => {
+          return node instanceof Element;
+        })
+        .filter((element) => {
+          return (
+            element.style.visibility != "hidden" &&
+            !element.classList.contains("synthesis_player_btn") &&
+            !element.classList.contains("synthesis_player_svg")
+          );
+        });
+      if (addedNodes.length > 0) {
+        console.log("Element(s) added:", addedNodes);
+      }
+
+      let removedNodes = Array(...mutation.removedNodes)
+        .filter((node) => node instanceof Element)
+        .filter(
+          (element) =>
+            element.style.visibility != "hidden" &&
+            !element.classList.contains("synthesis_player_btn") &&
+            !element.classList.contains("synthesis_player_svg")
+        );
+      if (removedNodes.length > 0) {
+        console.log("Element(s) removed:", removedNodes);
+      }
+
+      let addedTexts = Array(...mutation.removedNodes).filter(
+        (node) => node instanceof Text
+      );
+      if (addedTexts.length > 0) {
+        console.log("Texts(s) added:", addedTexts);
+      }
+      let removedTexts = Array(...mutation.removedNodes).filter(
+        (node) => node instanceof Text
+      );
+      if (removedTexts.length > 0) {
+        console.log("Text(s) removed:", removedTexts);
+      }
+    } else if (mutation.type === "characterData") {
+      // TODO: check this.
+      console.warn(
+        "Carefull! this is unhandled. Text changed:",
+        mutation.target.textContent
+      );
+    }
+  }
+};
+
+// Options for the MutationObserver
+const observerOptions = {
+  childList: true, // Observes changes to the list of children of the target node.
+  subtree: true, // Observes changes to the entire subtree of the target node.
+  characterData: true, // Observes changes to the value of text nodes.
+  characterDataOldValue: true, // Records the previous value of text nodes when changed.
+  // attributeOldValue: true, // Records the previous value of attributes when changed.
+  // attributes: true, // Observes changes to attributes.
+};
+
+// Create a new MutationObserver
+const observer = new MutationObserver(handleMutation);
+
+// Target element to observe
+const target = document.body; // You can change this to observe a specific element
+
+// Start observing the target element with the specified options
+observer.observe(target, observerOptions);
