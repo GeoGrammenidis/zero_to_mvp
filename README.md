@@ -92,8 +92,14 @@ To run the project
 2. Fixed position, z-index, and some css properties
 3. Fixed a bug that occured because previously I was using do while and changed to a Array build-in forEach function.
 4. Headings is possible to contain elements and I had forgotten to update the way I was getting the text for elements as well. Fixed.
+5. Moved code into functions to improve readability and increase reusability
+6. Added custom logger, and logs for everything we may care about. The logger can be muted with a configuration change.
+7. In home page added some articles related to people with disabilities.
 
 ## TODO list
 
 - check and update [package.json](./package.json)
-- clean up code
+- add CSS for home page
+- trace page changes to update the speeches accordingly.
+- add Speech recognition API and make it possible to start playing speeches based on what the user said.
+- add configuartion button & update Speech recognition API to have acces to configurations as well.
