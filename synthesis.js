@@ -18,34 +18,30 @@ function renderPlayer(config = {}) {
       pitch: 1,
       rate: 1.2,
       voiceName: "Google UK English Male",
-      ignoreClasses: ["visually-hidden"],
+      ignoredClasses: ["visually-hidden"],
       ...config,
     };
+
     const synth = window.speechSynthesis;
     synth.cancel();
     const utterThis = new SpeechSynthesisUtterance("Default text");
 
     // initial values
-    let unfinishedCode = false;
-    let lastButtonPressed = null;
-    let lastButtonPressedSvg = null;
-    let headings = Array.from(
-      document.querySelectorAll(config.targetHeadings.join(", "))
-    )
-      .filter(
-        (heading) =>
-          !config.ignoreClasses.some((x) => heading.classList.contains(x))
-      )
-      .filter((heading) => isElementVisible(heading));
-    let buttons = [];
-    let texts = [];
-    let speeches = [];
+    const [state, setState] = customUseState({
+      unfinishedCode: false,
+      lastButtonPressed: null,
+      lastButtonPressedSvg: null,
+      headings: getHeadings(),
+      buttons: [],
+      texts: [],
+      speeches: [],
+    });
 
     // adding CSS rules
     document.head.appendChild(createCSSelement());
 
-    // creating button for every heading.
-    headings.forEach((heading, i) => {
+    // creating button with its own svgs for every heading.
+    state.headings.forEach((heading, i) => {
       // create svgs for the button.
       let pauseSvg = createSVG("pause");
       let playSvg = createSVG("play");
@@ -56,12 +52,16 @@ function renderPlayer(config = {}) {
       styleButton(newButton, heading);
       parentNode = heading.parentNode;
       parentNode.insertBefore(newButton, heading);
-      buttons.push(newButton);
       // prepare the text for the speech
       let headingText = getTextFromElement(heading, true).text.trim();
-      texts.push(
-        correctEndPunctation(headingText) ? headingText : headingText + "."
-      );
+      setState({
+        ...state,
+        buttons: [...state.buttons, newButton],
+        texts: [
+          ...state.texts,
+          correctEndPunctation(headingText) ? headingText : headingText + ".",
+        ],
+      });
       let nextSibling = heading;
       while (nextSibling.nextElementSibling) {
         nextSibling = nextSibling.nextElementSibling;
@@ -73,7 +73,7 @@ function renderPlayer(config = {}) {
       }
       // add event listener
       newButton.addEventListener("click", async (e) => {
-        if (unfinishedCode) {
+        if (state.unfinishedCode) {
           console.log(
             "Clicked too fast. stateHandler hasn't run every command yet. Ignoring the click event."
           );
@@ -82,7 +82,7 @@ function renderPlayer(config = {}) {
         let element = e.currentTarget;
         let text = texts[i];
         await new Promise((resolve) => {
-          unfinishedCode = true;
+          setState({ ...state, unfinishedCode: true });
           if (element.getAttribute("data-state") == "idle") {
             synth.cancel();
             let words = text.split(" ").filter((x) => x != "");
@@ -94,22 +94,26 @@ function renderPlayer(config = {}) {
                 speech.length > 200 ||
                 i == words.length - 1
               ) {
-                speeches.push(speech);
+                setState({ speeches: [...state.speeches, speech], ...state });
                 speech = "";
               }
             });
-            utterThis.text = speeches.shift();
+            utterThis.text = state.speeches[0];
+            setState({ speeches: state.speeches.slice(1), ...state });
             synth.speak(utterThis);
-            if (lastButtonPressed != null) {
-              lastButtonPressed.setAttribute("data-state", "idle");
-              lastButtonPressed.innerHTML = "";
-              lastButtonPressed.appendChild(lastButtonPressedSvg);
+            if (state.lastButtonPressed != null) {
+              state.lastButtonPressed.setAttribute("data-state", "idle");
+              state.lastButtonPressed.innerHTML = "";
+              state.lastButtonPressed.appendChild(state.lastButtonPressedSvg);
             }
             element.setAttribute("data-state", "playing");
             element.innerHTML = "";
             element.appendChild(pauseSvg);
-            lastButtonPressed = element;
-            lastButtonPressedSvg = playSvg;
+            setState({
+              ...state,
+              lastButtonPressed: element,
+              lastButtonPressedSvg: playSvg,
+            });
           } else if (element.getAttribute("data-state") == "playing") {
             synth.pause();
             element.setAttribute("data-state", "pause");
@@ -123,7 +127,7 @@ function renderPlayer(config = {}) {
           } else {
             throw Error("data-state has unexpected value.");
           }
-          unfinishedCode = false;
+          setState({ ...state, unfinishedCode: false });
           resolve();
         });
       });
@@ -135,14 +139,12 @@ function renderPlayer(config = {}) {
     };
 
     utterThis.onend = () => {
-      if (speeches.length > 0) {
-        utterThis.text = speeches.shift();
+      if (state.speeches.length > 0) {
+        utterThis.text = state.speeches[0];
+        setState({ speeches: state.speeches.slice(1), ...state });
         synth.speak(utterThis);
       } else if (isUtteredFromThisSynthesis()) {
-        // updateButton({ state: "idle" }); TODO handle button state
-        lastButtonPressed.setAttribute("data-state", "idle");
-        lastButtonPressed.innerHTML = "";
-        lastButtonPressed.appendChild(lastButtonPressedSvg);
+        updateButton({ buttonState: "idle" });
         unfinishedSpeech = false;
       }
     };
@@ -153,18 +155,48 @@ function renderPlayer(config = {}) {
 
     // ~~~~~~ window events ~~~~~~
     window.addEventListener("resize", () => {
-      buttons.forEach((button, i) => {
-        positionButton(button, headings[i]);
+      state.buttons.forEach((button, i) => {
+        positionButton(button, state.headings[i]);
       });
     });
 
     window.addEventListener("load", function () {
-      buttons.forEach((button, i) => {
-        positionButton(button, headings[i]);
+      state.buttons.forEach((button, i) => {
+        positionButton(button, state.headings[i]);
       });
     });
 
     // ~~~~~~ helping functions ~~~~~~
+
+    // side effects: only if there is a callback function.
+    function customUseState(initialValue) {
+      let state = initialValue;
+      const setState = (value) => {
+        if (typeof value === "function") {
+          state = value(state);
+        } else {
+          state = value;
+        }
+        // We can add a re-rendering mechanism here.
+      };
+      return [state, setState];
+    }
+
+    // side effects: changes lastButtonPressed attribute and innerHTML.
+    function updateButton({
+      buttonState,
+      lastButtonPressed = state.lastButtonPressed,
+      lastButtonPressedSvg = state.lastButtonPressedSvg,
+    } = {}) {
+      if (!buttonState) {
+        console.error("No buttonState");
+        return unfinishedSpeech;
+      } else if (buttonState == "idle") {
+        lastButtonPressed.setAttribute("data-state", buttonState);
+        lastButtonPressed.innerHTML = "";
+        lastButtonPressed.appendChild(lastButtonPressedSvg);
+      }
+    }
 
     // with side effects: changes utterThis and config.
     function updateSpeechSynthesisSettings({
@@ -180,14 +212,27 @@ function renderPlayer(config = {}) {
       config.rate = rate;
     }
 
-    // no side effects
+    // no side effects.
     function getVoice(voiceName) {
       return synth.getVoices().find((voice) => voice.name === voiceName);
     }
 
     // no side effects.
+    function getHeadings({
+      targetHeadings = config.targetHeadings,
+      ignoredClasses = config.ignoredClasses,
+    } = {}) {
+      return Array.from(document.querySelectorAll(targetHeadings.join(", ")))
+        .filter(
+          (heading) =>
+            !ignoredClasses.some((x) => heading.classList.contains(x))
+        )
+        .filter((heading) => isElementVisible(heading));
+    }
+
+    // no side effects.
     function isUtteredFromThisSynthesis({
-      lastButtonPressed = lastButtonPressed,
+      lastButtonPressed = state.lastButtonPressed,
     } = {}) {
       return (
         lastButtonPressed &&
