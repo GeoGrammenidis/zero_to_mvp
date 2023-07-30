@@ -17,7 +17,7 @@ function renderPlayer(config = {}) {
       },
       pitch: 1,
       rate: 1.2,
-      voice: "Google UK English Male",
+      voiceName: "Google UK English Male",
       ignoreClasses: ["visually-hidden"],
       ...config,
     };
@@ -25,6 +25,7 @@ function renderPlayer(config = {}) {
     synth.cancel();
     const utterThis = new SpeechSynthesisUtterance("Default text");
 
+    // initial values
     let unfinishedCode = false;
     let lastButtonPressed = null;
     let lastButtonPressedSvg = null;
@@ -40,6 +41,10 @@ function renderPlayer(config = {}) {
     let texts = [];
     let speeches = [];
 
+    // adding CSS rules
+    document.head.appendChild(createCSSelement());
+
+    // creating button for every heading.
     headings.forEach((heading, i) => {
       // create svgs for the button.
       let pauseSvg = createSVG("pause");
@@ -74,79 +79,67 @@ function renderPlayer(config = {}) {
           );
           return;
         }
-        await stateHandler(e.currentTarget, texts[i], playSvg, pauseSvg);
+        let element = e.currentTarget;
+        let text = texts[i];
+        await new Promise((resolve) => {
+          unfinishedCode = true;
+          if (element.getAttribute("data-state") == "idle") {
+            synth.cancel();
+            let words = text.split(" ").filter((x) => x != "");
+            let speech = "";
+            words.forEach((word, i) => {
+              speech += word + " ";
+              if (
+                (speech.length > 150 && correctEndPunctation(speech)) ||
+                speech.length > 200 ||
+                i == words.length - 1
+              ) {
+                speeches.push(speech);
+                speech = "";
+              }
+            });
+            utterThis.text = speeches.shift();
+            synth.speak(utterThis);
+            if (lastButtonPressed != null) {
+              lastButtonPressed.setAttribute("data-state", "idle");
+              lastButtonPressed.innerHTML = "";
+              lastButtonPressed.appendChild(lastButtonPressedSvg);
+            }
+            element.setAttribute("data-state", "playing");
+            element.innerHTML = "";
+            element.appendChild(pauseSvg);
+            lastButtonPressed = element;
+            lastButtonPressedSvg = playSvg;
+          } else if (element.getAttribute("data-state") == "playing") {
+            synth.pause();
+            element.setAttribute("data-state", "pause");
+            element.innerHTML = "";
+            element.appendChild(playSvg);
+          } else if (element.getAttribute("data-state") == "pause") {
+            synth.resume();
+            element.setAttribute("data-state", "playing");
+            element.innerHTML = "";
+            element.appendChild(pauseSvg);
+          } else {
+            throw Error("data-state has unexpected value.");
+          }
+          unfinishedCode = false;
+          resolve();
+        });
       });
     });
-    console.log("texts prepared:", texts);
 
-    function stateHandler(element, text = "", playSvg, pauseSvg) {
-      return new Promise((resolve) => {
-        unfinishedCode = true;
-        if (element.getAttribute("data-state") == "idle") {
-          synth.cancel();
-          let words = text.split(" ").filter((x) => x != "");
-          let speech = "";
-          words.forEach((word, i) => {
-            speech += word + " ";
-            if (
-              (speech.length > 150 && correctEndPunctation(speech)) ||
-              speech.length > 200 ||
-              i == words.length - 1
-            ) {
-              speeches.push(speech);
-              speech = "";
-            }
-          });
-          utterThis.text = speeches.shift();
-          synth.speak(utterThis);
-          if (lastButtonPressed != null) {
-            lastButtonPressed.setAttribute("data-state", "idle");
-            lastButtonPressed.innerHTML = "";
-            lastButtonPressed.appendChild(lastButtonPressedSvg);
-          }
-          element.setAttribute("data-state", "playing");
-          element.innerHTML = "";
-          element.appendChild(pauseSvg);
-          lastButtonPressed = element;
-          lastButtonPressedSvg = playSvg;
-        } else if (element.getAttribute("data-state") == "playing") {
-          synth.pause();
-          element.setAttribute("data-state", "pause");
-          element.innerHTML = "";
-          element.appendChild(playSvg);
-        } else if (element.getAttribute("data-state") == "pause") {
-          synth.resume();
-          element.setAttribute("data-state", "playing");
-          element.innerHTML = "";
-          element.appendChild(pauseSvg);
-        } else {
-          throw Error("data-state has unexpected value.");
-        }
-        unfinishedCode = false;
-        resolve();
-      });
-    }
-
-    // synth events
+    // ~~~~~~ synth events ~~~~~~
     synth.onvoiceschanged = () => {
-      console.log("On voiceschanged fired.");
-      utterThis.voice = synth
-        .getVoices()
-        .find((voice) => voice.name === "Google UK English Male");
-      utterThis.pitch = config.pitch;
-      utterThis.rate = config.rate;
-    };
-
-    utterThis.onstart = () => {
-      console.log("Speech started.");
+      updateSpeechSynthesisSettings();
     };
 
     utterThis.onend = () => {
-      console.log("Speech ended.");
       if (speeches.length > 0) {
         utterThis.text = speeches.shift();
         synth.speak(utterThis);
-      } else {
+      } else if (isUtteredFromThisSynthesis()) {
+        // updateButton({ state: "idle" }); TODO handle button state
         lastButtonPressed.setAttribute("data-state", "idle");
         lastButtonPressed.innerHTML = "";
         lastButtonPressed.appendChild(lastButtonPressedSvg);
@@ -158,25 +151,51 @@ function renderPlayer(config = {}) {
       console.error("Error occurred:", event.error);
     };
 
-    // // won't be used. Issue on chrome, event never fired.
-    // utterThis.onpause = (event) => {
-    //   console.log(`Speech paused after ${event.elapsedTime} seconds.`);
-    // };
+    // ~~~~~~ window events ~~~~~~
+    window.addEventListener("resize", () => {
+      buttons.forEach((button, i) => {
+        positionButton(button, headings[i]);
+      });
+    });
 
-    // // won't be used. Issue on chrome, event never fired.
-    // utterThis.onresume = (event) => {
-    //   console.log(`Speech paused after ${event.elapsedTime} seconds.`);
-    // };
+    window.addEventListener("load", function () {
+      buttons.forEach((button, i) => {
+        positionButton(button, headings[i]);
+      });
+    });
 
-    // // won't be used. Issue on chrome, event never fired.
-    // utterThis.onboundary = (event) => {
-    //   console.log(
-    //     `${event.name} boundary reached after ${event.elapsedTime} seconds.`
-    //   );
-    // };
+    // ~~~~~~ helping functions ~~~~~~
 
-    // onmark won't be used for this project.
+    // with side effects: changes utterThis and config.
+    function updateSpeechSynthesisSettings({
+      voiceName = config.voiceName,
+      pitch = config.pitch,
+      rate = config.rate,
+    } = {}) {
+      utterThis.voice = getVoice(voiceName);
+      utterThis.pitch = pitch;
+      utterThis.rate = rate;
+      config.voiceName = voiceName;
+      config.pitch = pitch;
+      config.rate = rate;
+    }
 
+    // no side effects
+    function getVoice(voiceName) {
+      return synth.getVoices().find((voice) => voice.name === voiceName);
+    }
+
+    // no side effects.
+    function isUtteredFromThisSynthesis({
+      lastButtonPressed = lastButtonPressed,
+    } = {}) {
+      return (
+        lastButtonPressed &&
+        lastButtonPressed.getAttribute("data-state") != "idle"
+      );
+    }
+
+    // no side effects.
     function createSVG(title) {
       // Create an SVG element
       const svgElement = document.createElementNS(
@@ -211,10 +230,13 @@ function renderPlayer(config = {}) {
       return svgElement;
     }
 
+    // with side effects: changes button and uses positionButton function.
     function styleButton(button, heading) {
       button.classList.add("synthesis_player_btn");
       positionButton(button, heading);
     }
+
+    // with side effects: changes button
     function positionButton(button, heading) {
       let textWidth = getTextWidth(heading);
       const maxButtonRight = window.innerWidth - 30;
@@ -232,6 +254,7 @@ function renderPlayer(config = {}) {
       }px)`;
     }
 
+    // with side effects: added and then removed an element to the DOM
     function getTextWidth(element) {
       const offScreenDiv = document.createElement("div");
       offScreenDiv.style.position = "absolute";
@@ -247,19 +270,11 @@ function renderPlayer(config = {}) {
       document.body.removeChild(offScreenDiv);
       return width;
     }
-    window.addEventListener("resize", () => {
-      buttons.forEach((button, i) => {
-        positionButton(button, headings[i]);
-      });
-    });
-    window.addEventListener("load", function () {
-      buttons.forEach((button, i) => {
-        positionButton(button, headings[i]);
-      });
-    });
-    // CSS rules
-    const style = document.createElement("style");
-    const cssRules = `
+
+    // no side effects.
+    function createCSSelement() {
+      const style = document.createElement("style");
+      const cssRules = `
               :root {
                   --synthesis-brand-100: ${config.colors[100]};
                   --synthesis-brand-200: ${config.colors[200]};
@@ -319,10 +334,11 @@ function renderPlayer(config = {}) {
                   border-color: var(--synthesis-brand-800);
               }
           `;
+      style.textContent = cssRules;
+      return style;
+    }
 
-    style.textContent = cssRules;
-    document.head.appendChild(style);
-
+    // no side effects, TODO: break this function to smaller ones.
     function getTextFromElement(element, firstHeading = false) {
       let isHeadingElemnt = false;
       if (element && element.tagName) {
@@ -368,10 +384,12 @@ function renderPlayer(config = {}) {
       }
     }
 
+    // no side effects
     function correctEndPunctation(my_string) {
       return /[.!?:]\s*$/.test(my_string);
     }
 
+    // no side effects
     function isElementVisible(element) {
       const styles = window.getComputedStyle(element);
       return (
