@@ -7,13 +7,20 @@
     <title>Level Zero</title>
   </head>
   <body>
+    <p id="trace_1">Trace heading1, shouldn't find heading.</p>
     <h1>Synthesis playground</h1>
-    <h2>Level Zero</h2>
-    <p>From zero to MVP as always!</p>
-    <p></p>
-    <p>Hello <span>world!</span></p>
+    <div>
+      <h2>Level Zero</h2>
+      <p>From zero to MVP as always!</p>
+      <p></p>
+      <div>
+        <p id="trace_2">Trace heading2.</p>
+      </div>
+      <p>Hello <span>world!</span></p>
+    </div>
+    <p id="trace_3">Shouldn't read this. Shouldn't trace heading for this.</p>
 
-    <h2>Second Heading Level Zero</h2>
+    <h2>Second Heading Level <span id="trace_4">Zero</span></h2>
     <p>From zero to MVP as always! Don't forget to drink water!</p>
     <div class="to_add"></div>
     <p class="to_remove">An element that can be removed.</p>

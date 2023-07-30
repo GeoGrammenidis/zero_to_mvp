@@ -95,6 +95,17 @@ To run the project
 5. Moved code into functions to improve readability and increase reusability
 6. Added custom logger, and logs for everything we may care about. The logger can be muted with a configuration change.
 7. In home page added some articles related to people with disabilities.
+8. Added a way to trace mutations of elements we care about.
+9. After an element mutation, we will need to find if a speech need to be changed. To do that the idea is to try track down with a function that can take any element, the heading that is responsible for it to be uttered.
+
+- if the mutation was done on a heading we have the element we need.
+- otherwise
+  - we find the closest heading to the DOM which is higher than the targetElement.
+  - then we check if there is any heading inbetween the heading and the targetElement
+    - if yes then the element shouldnt be uttered, we return null
+    - if no then the the heading we had was the elemment we need.
+
+12. if you have any questions, please feel free to reach out to me via LinkedIn or email.
 
 ## TODO list
 

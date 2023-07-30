@@ -477,19 +477,15 @@ function renderPlayer(config = {}) {
 
     // no side effects, TODO: break this function to smaller ones.
     function getTextFromElement(element, firstHeading = false) {
-      let isHeadingElemnt = false;
       if (element && element.tagName) {
         if (element.tagName == "SCRIPT") {
           return { text: "", headindFound: false };
         }
-        isHeadingElemnt = config.targetHeadings.some(
-          (x) => x.toLowerCase() === element.tagName.toLowerCase()
-        );
       }
 
       if (element.nodeType === Node.TEXT_NODE) {
         return { text: element.textContent.trim(), headindFound: false };
-      } else if (isHeadingElemnt && !firstHeading) {
+      } else if (isHeadingElement(element) && !firstHeading) {
         return { text: "", headindFound: true };
       } else {
         let text = "";
@@ -535,80 +531,193 @@ function renderPlayer(config = {}) {
         styles.opacity !== "0"
       );
     }
+
+    // no side effects
+    function isHeadingElement(element, targetHeadings = config.targetHeadings) {
+      return (
+        element &&
+        element.tagName &&
+        targetHeadings.some(
+          (x) => x.toLowerCase() === element.tagName.toLowerCase()
+        )
+      );
+    }
+
+    // ~~~~~~ for DOM mutation. ~~~~~~
+    function findClosestHeading(element) {
+      if (isHeadingElement(element)) {
+        return element;
+      }
+      let descendantHeading = findHeadingDescendant(element);
+      if (descendantHeading) {
+        return descendantHeading;
+      }
+      let sibling = element;
+      while (sibling) {
+        sibling = sibling.previousElementSibling;
+        if (sibling) {
+          if (isHeadingElement(sibling)) {
+            break;
+          }
+        } else {
+          sibling = element.parentNode;
+          if (sibling === document.body) {
+            sibling = null;
+            break;
+          }
+        }
+      }
+
+      if (sibling) {
+        let targetOrHeading = findTargetOrHeading(
+          element,
+          sibling.nextElementSibling
+        );
+        if (targetOrHeading != "target") {
+          return null;
+        }
+      }
+
+      return sibling;
+    }
+
+    function findTargetOrHeading(targetElement, currentElement) {
+      if (currentElement === targetElement) {
+        return "target";
+      }
+
+      // Check for children and their descendants
+      let child = currentElement.firstElementChild;
+      while (child) {
+        const result = findTargetOrHeading(targetElement, child);
+        if (result === "target" || result === "heading") {
+          return result;
+        }
+        child = child.nextElementSibling;
+      }
+
+      // Check for heading element
+      if (isHeadingElement(currentElement)) {
+        return "heading";
+      }
+
+      // Check for siblings
+      let sibling = currentElement.nextElementSibling;
+      while (sibling) {
+        const result = findTargetOrHeading(targetElement, sibling);
+        if (result === "target" || result === "heading") {
+          return result;
+        }
+        sibling = sibling.nextElementSibling;
+      }
+      return "not found";
+    }
+
+    function findHeadingDescendant(element) {
+      let currentElement = element.parentElement;
+      while (currentElement) {
+        if (isHeadingElement(currentElement)) {
+          return currentElement; // Found a heading descendant, return it
+        }
+        currentElement = currentElement.parentElement;
+      }
+      return null; // No heading descendant found, return null
+    }
+    console.log(
+      "change_element",
+      findClosestHeading(document.querySelector("#change_element"))
+    );
+    console.log(
+      "trace_1",
+      findClosestHeading(document.querySelector("#trace_1"))
+    );
+
+    console.log(
+      "trace_2",
+      findClosestHeading(document.querySelector("#trace_2"))
+    );
+    console.log(
+      "trace_3",
+      findClosestHeading(document.querySelector("#trace_3"))
+    );
+    console.log(
+      "trace_4",
+      findClosestHeading(document.querySelector("#trace_4"))
+    );
+
+    // Function to handle DOM mutations
+    const handleMutation = (mutationsList, observer) => {
+      for (const mutation of mutationsList) {
+        if (mutation.type === "childList") {
+          let addedNodes = Array(...mutation.addedNodes)
+            .filter((node) => {
+              return node instanceof Element;
+            })
+            .filter((element) => {
+              return (
+                element.style.visibility != "hidden" &&
+                !element.classList.contains("synthesis_player_btn") &&
+                !element.classList.contains("synthesis_player_svg")
+              );
+            });
+          if (addedNodes.length > 0) {
+            console.log("Element(s) added:", addedNodes);
+          }
+
+          let removedNodes = Array(...mutation.removedNodes)
+            .filter((node) => node instanceof Element)
+            .filter(
+              (element) =>
+                element.style.visibility != "hidden" &&
+                !element.classList.contains("synthesis_player_btn") &&
+                !element.classList.contains("synthesis_player_svg")
+            );
+          if (removedNodes.length > 0) {
+            console.log("Element(s) removed:", removedNodes);
+          }
+
+          let addedTexts = Array(...mutation.removedNodes).filter(
+            (node) => node instanceof Text
+          );
+          if (addedTexts.length > 0) {
+            console.log("Texts(s) added:", addedTexts);
+          }
+          let removedTexts = Array(...mutation.removedNodes).filter(
+            (node) => node instanceof Text
+          );
+          if (removedTexts.length > 0) {
+            console.log("Text(s) removed:", removedTexts);
+          }
+        } else if (mutation.type === "characterData") {
+          // TODO: check this.
+          console.warn(
+            "Carefull! this is unhandled. Text changed:",
+            mutation.target.textContent
+          );
+        }
+      }
+    };
+
+    // Options for the MutationObserver
+    const observerOptions = {
+      childList: true, // Observes changes to the list of children of the target node.
+      subtree: true, // Observes changes to the entire subtree of the target node.
+      characterData: true, // Observes changes to the value of text nodes.
+      characterDataOldValue: true, // Records the previous value of text nodes when changed.
+      // attributeOldValue: true, // Records the previous value of attributes when changed.
+      // attributes: true, // Observes changes to attributes.
+    };
+
+    // Create a new MutationObserver
+    const observer = new MutationObserver(handleMutation);
+
+    // Target element to observe
+    const target = document.body; // You can change this to observe a specific element
+
+    // Start observing the target element with the specified options
+    observer.observe(target, observerOptions);
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
 }
 window.renderPlayer = renderPlayer;
-
-// Function to handle DOM mutations
-const handleMutation = (mutationsList, observer) => {
-  for (const mutation of mutationsList) {
-    if (mutation.type === "childList") {
-      let addedNodes = Array(...mutation.addedNodes)
-        .filter((node) => {
-          return node instanceof Element;
-        })
-        .filter((element) => {
-          return (
-            element.style.visibility != "hidden" &&
-            !element.classList.contains("synthesis_player_btn") &&
-            !element.classList.contains("synthesis_player_svg")
-          );
-        });
-      if (addedNodes.length > 0) {
-        console.log("Element(s) added:", addedNodes);
-      }
-
-      let removedNodes = Array(...mutation.removedNodes)
-        .filter((node) => node instanceof Element)
-        .filter(
-          (element) =>
-            element.style.visibility != "hidden" &&
-            !element.classList.contains("synthesis_player_btn") &&
-            !element.classList.contains("synthesis_player_svg")
-        );
-      if (removedNodes.length > 0) {
-        console.log("Element(s) removed:", removedNodes);
-      }
-
-      let addedTexts = Array(...mutation.removedNodes).filter(
-        (node) => node instanceof Text
-      );
-      if (addedTexts.length > 0) {
-        console.log("Texts(s) added:", addedTexts);
-      }
-      let removedTexts = Array(...mutation.removedNodes).filter(
-        (node) => node instanceof Text
-      );
-      if (removedTexts.length > 0) {
-        console.log("Text(s) removed:", removedTexts);
-      }
-    } else if (mutation.type === "characterData") {
-      // TODO: check this.
-      console.warn(
-        "Carefull! this is unhandled. Text changed:",
-        mutation.target.textContent
-      );
-    }
-  }
-};
-
-// Options for the MutationObserver
-const observerOptions = {
-  childList: true, // Observes changes to the list of children of the target node.
-  subtree: true, // Observes changes to the entire subtree of the target node.
-  characterData: true, // Observes changes to the value of text nodes.
-  characterDataOldValue: true, // Records the previous value of text nodes when changed.
-  // attributeOldValue: true, // Records the previous value of attributes when changed.
-  // attributes: true, // Observes changes to attributes.
-};
-
-// Create a new MutationObserver
-const observer = new MutationObserver(handleMutation);
-
-// Target element to observe
-const target = document.body; // You can change this to observe a specific element
-
-// Start observing the target element with the specified options
-observer.observe(target, observerOptions);
