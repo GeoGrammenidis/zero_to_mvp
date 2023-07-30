@@ -18,7 +18,7 @@
   border: 2px solid var(--synthesis-brand-600);
   opacity: 0.75;
   transition: 0.25s opacity, 0.25s background-color;
-  z-index: 10000;
+  /* z-index: 10000; */
 }
 .synthesis_player_btn svg,
 .synthesis_player_btn svg {

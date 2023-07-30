@@ -105,6 +105,17 @@ To run the project
     - if yes then the element shouldnt be uttered, we return null
     - if no then the the heading we had was the elemment we need.
 
+10. created this sets headingsToRemove, headingsToUpdate.
+
+- Headings in headingsToRemove, exist to help possibly remove headings from state.headings.
+- Headings in headingsToAdd, exist to help updating or adding headings into state.headings.
+
+11. with the help of headingsToRemove & headingsToAdd when we have mutations, we are able to
+
+- render or remove buttons from the dom,
+- remove old & update existing headings in the state.
+- remove old & update existing speeches in the state.
+
 12. if you have any questions, please feel free to reach out to me via LinkedIn or email.
 
 ## TODO list

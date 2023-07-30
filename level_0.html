@@ -7,29 +7,51 @@
     <title>Level Zero</title>
   </head>
   <body>
-    <p id="trace_1">Trace heading1, shouldn't find heading.</p>
-    <h1>Synthesis playground</h1>
-    <div>
-      <h2>Level Zero</h2>
-      <p>From zero to MVP as always!</p>
-      <p></p>
+    <div id="to_remove_all">
+      <p id="trace_1">Trace heading1, shouldn't find heading.</p>
+      <h1>Synthesis playground</h1>
       <div>
-        <p id="trace_2">Trace heading2.</p>
+        <h2>Level Zero!!</h2>
+        <p id="heading_after_this">From zero to MVP as always!!!</p>
+        <p></p>
+        <div>
+          <p id="trace_2">Trace heading2.</p>
+        </div>
+        <p>Hello <span>world!</span></p>
       </div>
-      <p>Hello <span>world!</span></p>
-    </div>
-    <p id="trace_3">Shouldn't read this. Shouldn't trace heading for this.</p>
+      <p id="trace_3">Shouldn't read this. Shouldn't trace heading for this.</p>
+      <p>Shouldn't read this either. Shouldn't trace heading for this.</p>
 
-    <h2>Second Heading Level <span id="trace_4">Zero</span></h2>
-    <p>From zero to MVP as always! Don't forget to drink water!</p>
-    <div class="to_add"></div>
-    <p class="to_remove">An element that can be removed.</p>
-    <p class="to_change">An element that can be changed.</p>
-    <p class="to_change_2">An 2nd element that can be changed.</p>
-    <p class="to_remove">An 2nd element that can be removed.</p>
-    <button id="add_element">add element</button>
-    <button id="remove_element">remove element</button>
-    <button id="change_element">change element</button>
+      <h2 id="to_remove_heading_2">
+        Second Heading Level <span id="trace_4">Zero</span>
+      </h2>
+      <p>From zero to MVP as always! Don't forget to drink water!</p>
+      <div class="to_add"></div>
+      <p class="to_remove">An element that can be removed.</p>
+      <p class="to_change">An element that can be changed.</p>
+      <p class="to_change_2">A 2nd element that can be changed.</p>
+      <p class="to_remove">A 2nd element that can be removed.</p>
+
+      <h2 class="update">A heading that should update</h2>
+      <!-- <p>lalala</p> -->
+      <div id="whatever">
+        <p>text inside here..lol?</p>
+
+        <h2 class="remove_1">A heading that was removed</h2>
+        <p>some text is here...</p>
+        <h2 class="remove">A second heading that was removed</h2>
+        <p>a random paragraph removed</p>
+      </div>
+
+      <button id="add_element">add element</button>
+      <button id="remove_element">remove element</button>
+      <button id="change_element">change element</button>
+    </div>
+    <button id="remove_all">remove all</button>
+    <button id="remove_heading_2">remove heading 2</button>
+    <button id="remove_whatever">remove whatever</button>
+    <button id="add_heading">add heading</button>
+
     <script src="synthesis.js" type="module" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
@@ -52,13 +74,41 @@
         .querySelector("#change_element")
         .addEventListener("click", () => {
           console.log("clicked change");
-          document.querySelector(".to_change").innerHTML = "something new!";
-          document.querySelector(".to_change_2").innerHTML = "asd";
+          // document.querySelector(".to_change").innerHTML = "something new!";
+          document.querySelector(".to_change").innerHTML = "";
+          // document.querySelector(".to_change_2").innerHTML = "asd";
 
-          const newSpan = document.createElement("span");
-          newSpan.textContent = "... span text";
-          document.querySelector(".to_change_2").appendChild(newSpan);
+          // const newSpan = document.createElement("span");
+          // newSpan.textContent = "... span text";
+          // document.querySelector(".to_change_2").appendChild(newSpan);
         });
+      document.querySelector("#remove_all").addEventListener("click", () => {
+        document.querySelector("#to_remove_all").remove();
+      });
+      document
+        .querySelector("#remove_heading_2")
+        .addEventListener("click", () => {
+          document.querySelector("#to_remove_heading_2").remove();
+        });
+      document
+        .querySelector("#remove_whatever")
+        .addEventListener("click", () => {
+          document.querySelector("#whatever").remove();
+        });
+      document
+        .querySelector("#add_heading")
+
+        .addEventListener("click", () => {
+          const newHeading = document.createElement("h2");
+          newHeading.textContent =
+            "This is a new paragraph created with JavaScript!";
+          const existingNode = document.querySelector("#heading_after_this");
+          existingNode.parentNode.insertBefore(
+            newHeading,
+            existingNode.nextSibling
+          );
+        });
+      remove_whatever;
     </script>
   </body>
 </html>
