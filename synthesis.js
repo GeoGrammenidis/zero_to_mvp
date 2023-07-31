@@ -30,8 +30,39 @@ function renderPlayer(config = {}) {
     logger.state("player:", playerState);
 
     // create a CSS elemenet and attach it to the head.
-    document.head.appendChild(createCSSelement(config.colors));
+    document.head.appendChild(
+      createCSSelement(config.colors, config.buttonHeight)
+    );
     logger.dom("Added inline CSS into head");
+
+    playerState.headings.forEach((heading, i) => {
+      // create a button
+      let newButton = createButton(config.buttonHeight);
+
+      logger.info(
+        `CREATED: 1 button & 2 svg elements. APPENDED: the svgs into button FOR:`,
+        heading
+      );
+
+      // reposition the button
+      positionButtonNearHeading(
+        newButton,
+        heading,
+        getTextWidth(heading),
+        window.innerWidth - 30,
+        config.buttonHeight
+      );
+      logger.info(`Repositioned the button near the heading`);
+
+      // ... continue here
+
+      // added button to the dom
+      let parentNode = heading.parentNode;
+      parentNode.insertBefore(newButton, heading);
+      logger.dom("added button");
+    });
+
+    // ... continue here
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
@@ -68,6 +99,7 @@ function getInitialConfig() {
       button: true,
       colored: false,
     },
+    buttonHeight: 24,
   };
 }
 
@@ -89,6 +121,25 @@ function getHeadings(
   return Array.from(containerElement.querySelectorAll(headingsArray)).filter(
     (heading) => isVisibleFunc(heading, computeStyles)
   );
+}
+
+function getTextWidth(element, font) {
+  const offScreenDiv = document.createElement("div");
+  offScreenDiv.style.position = "absolute";
+  offScreenDiv.style.visibility = "hidden";
+  offScreenDiv.style.whiteSpace = "nowrap";
+  offScreenDiv.style.font = font || window.getComputedStyle(element).font;
+
+  const textNode = document.createTextNode(element.textContent);
+  offScreenDiv.appendChild(textNode);
+
+  const body = document.createElement("body");
+  body.appendChild(offScreenDiv);
+
+  document.documentElement.appendChild(body);
+  const width = offScreenDiv.clientWidth;
+  document.documentElement.removeChild(body);
+  return width;
 }
 
 // ~~~~~~~~~ checkers ~~~~~~~~~
@@ -123,7 +174,59 @@ function isElementVisible(element, computeStyles = true) {
 
 // ~~~~~~~~~ element creators ~~~~~~~~~
 
-function createCSSelement(colors) {
+function createButton(buttonHeight) {
+  let newButton = document.createElement("button");
+  newButton.classList.add("synthesis_player_btn");
+  let newSvg = createSVG("pause", buttonHeight);
+  newSvg.style.opacity = 0;
+  newButton.appendChild(newSvg);
+  newButton.appendChild(createSVG("play", buttonHeight));
+  newButton.setAttribute("data-state", "idle");
+  return newButton;
+}
+
+function createSVG(title, buttonHeight) {
+  if (typeof title != "string") {
+    throw new Error("The title provided isn't type of string.");
+  }
+  if (typeof buttonHeight != "number") {
+    throw new Error("The buttonHeight provided isn't type of number.");
+  }
+  // Create an SVG element
+  const svgElement = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "svg"
+  );
+  svgElement.setAttribute("version", "1.1");
+  svgElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  svgElement.setAttribute("width", `${buttonHeight - 10}`);
+  svgElement.setAttribute("height", `${buttonHeight - 10}`);
+  svgElement.setAttribute("viewBox", "0 0 32 32");
+
+  // Create a title element
+  const titleElement = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "title"
+  );
+  titleElement.textContent = title;
+  svgElement.appendChild(titleElement);
+
+  // Create a path element
+  const pathElement = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "path"
+  );
+  if (title == "play") {
+    pathElement.setAttribute("d", "M6 4l20 12-20 12z");
+  } else {
+    pathElement.setAttribute("d", "M4 4h10v24h-10zM18 4h10v24h-10z");
+  }
+  svgElement.appendChild(pathElement);
+  svgElement.classList.add("synthesis_player_svg");
+  return svgElement;
+}
+
+function createCSSelement(colors, buttonHeight) {
   if (typeof colors != "object") {
     throw new Error("Invalid type provided.");
   } else {
@@ -135,6 +238,9 @@ function createCSSelement(colors) {
         throw new Error("A color wasn't proviced.");
       }
     });
+  }
+  if (typeof buttonHeight != "number") {
+    throw new Error("buttonHeight wasn't a number");
   }
   const cssRules = `
               :root {
@@ -152,8 +258,8 @@ function createCSSelement(colors) {
               .synthesis_player_btn {
                   position: absolute;
                   background-color: var(--synthesis-brand-500);
-                  width: 24px;
-                  height: 24px;
+                  width: ${buttonHeight}px;
+                  height: ${buttonHeight}px;
                   border-radius: 50%;
                   border: 2px solid var(--synthesis-brand-600);
                   opacity: 0.75;
@@ -202,26 +308,48 @@ function createCSSelement(colors) {
   return style;
 }
 
-//     // adding CSS rules
-//     document.head.appendChild(createCSSelement());
-//     logger.dom("Added inline CSS into head");
+function positionButtonNearHeading(
+  buttonElement,
+  headingElement,
+  headingTextWidth,
+  maxButtonRightPosition,
+  buttonHeight
+) {
+  if (
+    !buttonElement ||
+    !headingElement ||
+    !(buttonElement instanceof Element) ||
+    !(headingElement instanceof Element)
+  ) {
+    throw new Error(
+      "Invalid element provided or element is not an instance of Element. Both buttonElement and headingElement must be provided."
+    );
+  }
 
-//     // creating button with its own svgs for every heading.
-//     state.headings.forEach((heading, i) => {
-//       renderButton(heading, i);
-//     });
+  if (
+    typeof headingTextWidth !== "number" ||
+    typeof maxButtonRightPosition !== "number" ||
+    typeof buttonHeight !== "number"
+  ) {
+    throw new Error(
+      "Invalid input. headingTextWidth, maxButtonRightPosition, and buttonHeight must be numbers."
+    );
+  }
 
-//     function renderButton(heading, i) {
-//       // create svgs for the button.
-//       let pauseSvg = createSVG("pause");
-//       let playSvg = createSVG("play");
-//       // create and render the button
-//       const newButton = createButton(playSvg);
-//       styleButton(newButton, heading);
-//       logger.info(
-//         "created 1 button, 1 play svg & 1 pause svg for heading:",
-//         heading
-//       );
+  let buttonLeftPosition;
+  if (headingTextWidth < headingElement.clientWidth) {
+    buttonLeftPosition = headingTextWidth + headingElement.offsetLeft;
+  } else {
+    buttonLeftPosition =
+      headingElement.clientWidth + headingElement.offsetLeft - buttonHeight - 1;
+  }
+  buttonElement.style.left =
+    Math.min(buttonLeftPosition, maxButtonRightPosition) + "px";
+
+  buttonElement.style.transform = `translateY(${
+    (headingElement.clientHeight - buttonHeight) / 2
+  }px)`;
+}
 
 //       // prepare the speech
 //       let speech = getHeadingText(heading);
