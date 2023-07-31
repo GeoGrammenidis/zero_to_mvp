@@ -350,7 +350,7 @@ function renderPlayer(config = {}) {
       if (textWidth < heading.clientWidth) {
         buttonLeft = getTextWidth(heading) + heading.offsetLeft;
       } else {
-        buttonLeft = heading.clientWidth + heading.offsetLeft - 7;
+        buttonLeft = heading.clientWidth + heading.offsetLeft - 25;
       }
       button.style.left = Math.min(buttonLeft, maxButtonRight) + "px";
 
@@ -402,6 +402,7 @@ function renderPlayer(config = {}) {
                   border: 2px solid var(--synthesis-brand-600);
                   opacity: 0.75;
                   transition: 0.25s opacity, 0.25s background-color;
+                  z-index:100;
               }
 
               .synthesis_player_btn svg,
@@ -484,7 +485,8 @@ function renderPlayer(config = {}) {
       if (element && element.tagName) {
         if (
           element.tagName == "SCRIPT" ||
-          element.classList.contains("synthesis_player_btn")
+          element.classList.contains("synthesis_player_btn") ||
+          !isElementVisible(element)
         ) {
           return { text: "", headindFound: false };
         }
@@ -668,6 +670,9 @@ function renderPlayer(config = {}) {
             })
             .filter(
               (element) =>
+                // isElementVisible(element) && //this one creates bug. TODO: check why.
+                element.style.display != "none" &&
+                element.style.opacity !== "0" &&
                 element.style.visibility != "hidden" &&
                 !element.classList.contains("synthesis_player_btn") &&
                 !element.classList.contains("synthesis_player_svg")
@@ -676,6 +681,9 @@ function renderPlayer(config = {}) {
             .filter((node) => node instanceof Element)
             .filter(
               (element) =>
+                // isElementVisible(element) && //this one creates bug. TODO: check why
+                element.style.display != "none" &&
+                element.style.opacity !== "0" &&
                 element.style.visibility != "hidden" &&
                 !element.classList.contains("synthesis_player_btn") &&
                 !element.classList.contains("synthesis_player_svg")
@@ -755,6 +763,25 @@ function renderPlayer(config = {}) {
             "Carefull! this is unhandled. Text changed:",
             mutation.target.textContent
           );
+        } else if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "style"
+        ) {
+          let targetElement = mutation.target;
+          if (targetElement instanceof Element) {
+            if (isElementVisible(targetElement)) {
+              console.log(
+                `${targetElement.nodeName} with ID ${targetElement.id} became hidden. NEED TO UPDATE`,
+                headingsToUpdate
+              );
+            } else {
+              console.log(
+                `${targetElement.nodeName} with ID ${targetElement.id} became hidden. NEED TO UPDATE`,
+                headingsToUpdate,
+                headingsToRemove
+              );
+            }
+          }
         }
         headingsToUpdate.delete(null);
         if (headingsToUpdate.size > 0) {

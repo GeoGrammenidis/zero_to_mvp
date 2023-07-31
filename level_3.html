@@ -81,7 +81,7 @@ adServer: 'googletag' });
                 </script>
             
     	
-	            <link rel="stylesheet" href="https://bypass.theweek.com/css/bfdc44b.css">
+	            <link rel="stylesheet" href="https://web.archive.org/web/20201123000138cs_/https://bypass.theweek.com/css/bfdc44b.css">
     
         <!--[if IE 7]>
 	<style>
@@ -3719,6 +3719,28 @@ ineum("trackSessions");
     <div class="row column footer-copyright"><span>®</span> 2020 The Week Publications Inc., All rights reserved.</div>
     </div>
 </div>
+
+<script src="synthesis.js" type="module" defer></script>
+<script>
+	document.addEventListener("DOMContentLoaded", function () {
+	renderPlayer({
+        targetHeadings: [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            ".headline",
+            ".module-headline",
+            ".browse-all-covers",
+            ".mp-headline",
+            ".title",
+            "#signup-cta-label-2"
+        ]
+    });
+	});
+</script>
 
 <script>
     if (Cookies.get('LoggedIn') == "True") {

@@ -125,3 +125,7 @@ To run the project
 - trace page changes to update the speeches accordingly.
 - add Speech recognition API and make it possible to start playing speeches based on what the user said.
 - add configuartion button & update Speech recognition API to have acces to configurations as well.
+- check ifames
+- check visibilty change
+- claen up code
+- add e2e testing

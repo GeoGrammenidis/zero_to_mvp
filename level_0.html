@@ -5,14 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- <link rel="stylesheet" href="styles.css" /> -->
     <title>Level Zero</title>
+    <style>
+      .hidden {
+        display: none;
+      }
+    </style>
   </head>
   <body>
     <div id="to_remove_all">
       <p id="trace_1">Trace heading1, shouldn't find heading.</p>
       <h1>Synthesis playground</h1>
       <div>
-        <h2>Level Zero!!</h2>
-        <p id="heading_after_this">From zero to MVP as always!!!</p>
+        <h2 id="toogle_hide">Level Zero!!</h2>
+        <p id="heading_after_this" class="hidden">
+          From zero to MVP as always!!!
+        </p>
         <p></p>
         <div>
           <p id="trace_2">Trace heading2.</p>
@@ -38,6 +45,9 @@
         <p>text inside here..lol?</p>
 
         <h2 class="remove_1">A heading that was removed</h2>
+        <p>is text here as well...</p>
+
+        <div class="heading">custom headline</div>
         <p>some text is here...</p>
         <h2 class="remove">A second heading that was removed</h2>
         <p>a random paragraph removed</p>
@@ -51,7 +61,7 @@
     <button id="remove_heading_2">remove heading 2</button>
     <button id="remove_whatever">remove whatever</button>
     <button id="add_heading">add heading</button>
-
+    <button id="btn_toogle_hide">toggle hide</button>
     <script src="synthesis.js" type="module" defer></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
@@ -108,7 +118,15 @@
             existingNode.nextSibling
           );
         });
-      remove_whatever;
+      document
+        .getElementById("btn_toogle_hide")
+        .addEventListener("click", () => {
+          if (document.querySelector("#toogle_hide").style.display != "none") {
+            document.querySelector("#toogle_hide").style.display = "none";
+          } else {
+            document.querySelector("#toogle_hide").style.display = "block";
+          }
+        });
     </script>
   </body>
 </html>
