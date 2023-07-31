@@ -1,5 +1,15 @@
 import customLogger from "./logger.js";
 
+let playerState = {
+  unfinishedCode: false,
+  lastButtonPressed: null, // last player's button pressed
+  lastButtonPressedSvg: null,
+  headings: [], // all heading elements found in document
+  buttons: [], // created player's button elements
+  speeches: [], // created player's button elements
+  speechChunks: [], // used to keep chunks of long speeches when uttered.
+};
+
 // TODO: check the configuration object that it has the correct schema.
 function renderPlayer(config = {}) {
   if ("speechSynthesis" in window) {
@@ -18,16 +28,10 @@ function renderPlayer(config = {}) {
     logger.synth("canceled");
 
     // initialize player state
-    let playerState = {
-      unfinishedCode: false,
-      lastButtonPressed: null, // last player's button pressed
-      lastButtonPressedSvg: null,
-      headings: getHeadings(config.targetHeadings, document, isElementVisible), // all heading elements found in document
-      buttons: [], // created player's button elements
-      speeches: [], // created player's button elements
-      speechChunks: [], // used to keep chunks of long speeches when uttered.
-    };
-    logger.state("player:", playerState);
+    updatePlayerState({
+      headings: getHeadings(config.targetHeadings, document, isElementVisible),
+    });
+    logger.state("playerste: initialized", playerState);
 
     // create a CSS elemenet and attach it to the head.
     document.head.appendChild(
@@ -38,23 +42,39 @@ function renderPlayer(config = {}) {
     playerState.headings.forEach((heading, i) => {
       // create a button
       let newButton = createButton(config.buttonHeight);
-
       logger.info(
         `CREATED: 1 button & 2 svg elements. APPENDED: the svgs into button FOR:`,
         heading
       );
 
       // reposition the button
-      positionButtonNearHeading(
+      updatePositionButtonNearHeading(
         newButton,
         heading,
         getTextWidth(heading),
-        window.innerWidth - 30,
+        window.innerWidth - config.buttonHeight - 6,
         config.buttonHeight
       );
       logger.info(`Repositioned the button near the heading`);
 
-      // ... continue here
+      // create the speech for the button
+      let speech = getSpeech(heading, config.targetHeadings);
+      logger.info("created speech:", speech);
+
+      // save the speech and the button
+      updatePlayerState(
+        {
+          buttons: [...playerState.buttons, newButton],
+          speeches: [...playerState.speeches, speech],
+        },
+        playerState
+      );
+      logger.state("playerState: updated buttons & speeches", playerState);
+
+      // add event listener
+      newButton.addEventListener("click", (e) =>
+        updateButtonState(e, i, synth, utterThis)
+      );
 
       // added button to the dom
       let parentNode = heading.parentNode;
@@ -62,7 +82,68 @@ function renderPlayer(config = {}) {
       logger.dom("added button");
     });
 
-    // ... continue here
+    // ~~~~~~ synth events ~~~~~~
+    synth.onvoiceschanged = () => {
+      updateSpeechSynthesisSettings(
+        config.voiceName,
+        config.pitch,
+        config.rate,
+        synth,
+        utterThis
+      );
+      logger.synth("updated voiceName, pitch & rate", {
+        voiceName: config.voiceName,
+        pitch: config.pitch,
+        rate: config.rate,
+      });
+    };
+
+    utterThis.onend = () => {
+      if (playerState.speechChunks.length > 0) {
+        utterThis.text = playerState.speechChunks[0];
+        updatePlayerState({ speechChunks: playerState.speechChunks.slice(1) });
+        logger.state("updated speechCunks", playerState);
+        synth.speak(utterThis);
+        logger.synth("utters next available chunk:", utterThis.text);
+      } else if (isUtteredFromThisSynthesis(playerState.lastButtonPressed)) {
+        updateButtonUI(playerState.lastButtonPressed, "idle");
+        logger.synth("stopped uttering");
+        logger.button("updated button-state to idle(stopped playing)");
+      }
+    };
+
+    utterThis.onerror = (event) => {
+      if (config.logger.err) {
+        logger.err("Error occurred:", event.error);
+      } else {
+        console.error("Error occurred:", event.error);
+      }
+    };
+
+    // ~~~~~~ window events ~~~~~~
+    window.addEventListener("resize", () => {
+      playerState.buttons.forEach((button, i) => {
+        updatePositionButtonNearHeading(
+          button,
+          playerState.headings[i],
+          getTextWidth(playerState.headings[i]),
+          window.innerWidth - config.buttonHeight - 6,
+          config.buttonHeight
+        );
+      });
+    });
+
+    window.addEventListener("load", function () {
+      playerState.buttons.forEach((button, i) => {
+        updatePositionButtonNearHeading(
+          button,
+          playerState.headings[i],
+          getTextWidth(playerState.headings[i]),
+          window.innerWidth - config.buttonHeight - 6,
+          config.buttonHeight
+        );
+      });
+    });
   } else {
     console.log("Speech Synthesis API is not supported in this browser.");
   }
@@ -123,6 +204,99 @@ function getHeadings(
   );
 }
 
+function getSpeech(heading, targetHeadings) {
+  let speech = getTextFromElement(heading, targetHeadings, true).text;
+  let nextSibling = heading;
+  while (nextSibling.nextElementSibling) {
+    nextSibling = nextSibling.nextElementSibling;
+    const { text, headindFound } = getTextFromElement(
+      nextSibling,
+      targetHeadings
+    );
+    speech += text;
+    if (headindFound) {
+      break;
+    }
+  }
+  return speech;
+}
+
+function getSpeechChunks(speech) {
+  if (typeof speech != "string") {
+    throw new Error(
+      "Invalid speech provided. It was expected to be type of string."
+    );
+  }
+  let words = speech.split(" ").filter((x) => x != "");
+  let speechChunks = [];
+  let speechChunk = "";
+  words.forEach((word, i) => {
+    speechChunk += word + " ";
+    if (
+      (speechChunk.length > 150 && isEndingWithPunctation(speechChunk)) ||
+      speechChunk.length > 200 ||
+      i == words.length - 1
+    ) {
+      speechChunks.push(speechChunk);
+      speechChunk = "";
+    }
+  });
+  if (speechChunk != "") {
+    speechChunks.push(speechChunk);
+  }
+  return speechChunks;
+}
+
+function getTextFromElement(element, targetHeadings, firstHeading = false) {
+  if (element.nodeType === Node.TEXT_NODE) {
+    return { text: element.textContent.trim(), headindFound: false };
+  }
+  if (
+    !element ||
+    !element.tagName ||
+    element.tagName === "SCRIPT" ||
+    element.classList.contains("synthesis_player_btn") ||
+    !isElementVisible(element)
+  ) {
+    return { text: "", headindFound: false };
+  }
+
+  if (isHeadingElement(element, targetHeadings) && !firstHeading) {
+    return { text: "", headindFound: true };
+  }
+
+  let text = "";
+  let result = { headindFound: false };
+  for (const child of element.childNodes) {
+    const { text: childText, headindFound } = getTextFromElement(
+      child,
+      targetHeadings,
+      firstHeading
+    );
+    text += childText.trim();
+    if (headindFound) {
+      result.headindFound = true;
+      break;
+    }
+  }
+
+  if (
+    (element.tagName === "LI" || element.tagName === "P") &&
+    !isEndingWithPunctation(text)
+  ) {
+    text += ".";
+  }
+  if (element.tagName === "BUTTON") {
+    text = "(Button): " + text;
+  }
+  if (element.tagName === "A") {
+    // TODO: specify where the link is referring to.
+    text = "(Link): " + text;
+  }
+
+  return { text, headindFound: result.headindFound };
+}
+
 function getTextWidth(element, font) {
   const offScreenDiv = document.createElement("div");
   offScreenDiv.style.position = "absolute";
@@ -140,6 +314,10 @@ function getTextWidth(element, font) {
   const width = offScreenDiv.clientWidth;
   document.documentElement.removeChild(body);
   return width;
+}
+
+function getVoice(voiceName, synth) {
+  return synth.getVoices().find((voice) => voice.name === voiceName);
 }
 
 // ~~~~~~~~~ checkers ~~~~~~~~~
@@ -169,6 +347,26 @@ function isElementVisible(element, computeStyles = true) {
     styles.display !== "none" &&
     styles.visibility !== "hidden" &&
     styles.opacity !== "0"
+  );
+}
+
+function isHeadingElement(element, targetHeadings) {
+  return (
+    element &&
+    element.tagName &&
+    targetHeadings.some(
+      (x) => x.toLowerCase() === element.tagName.toLowerCase()
+    )
+  );
+}
+
+function isEndingWithPunctation(my_string) {
+  return /[.!?:]\s*$/.test(my_string);
+}
+
+function isUtteredFromThisSynthesis(lastButtonPressed) {
+  return (
+    lastButtonPressed && lastButtonPressed.getAttribute("data-state") != "idle"
   );
 }
 
@@ -308,7 +506,97 @@ function createCSSelement(colors, buttonHeight) {
   return style;
 }
 
-function positionButtonNearHeading(
+// ~~~~~~~~~ update functions ~~~~~~~~~
+function updatePlayerState(newState) {
+  playerState = { ...playerState, ...newState };
+}
+
+async function updateButtonState(e, buttonIndex, synth, utterThis) {
+  if (playerState.unfinishedCode) {
+    throw new Error(
+      "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
+    );
+  }
+
+  await new Promise((resolve) => {
+    updatePlayerState({ unfinishedCode: true });
+    const buttonElement = e.currentTarget;
+    const buttonState = buttonElement.getAttribute("data-state");
+
+    if (buttonState === "idle") {
+      handleIdleButtonState(buttonElement, buttonIndex, synth, utterThis);
+    } else if (buttonState === "playing") {
+      synth.pause();
+      updateButtonUI(buttonElement, "pause");
+    } else if (buttonState === "pause") {
+      synth.resume();
+      updateButtonUI(buttonElement, "resume");
+    } else {
+      throw new Error("data-state has unexpected value.");
+    }
+    updatePlayerState({ unfinishedCode: false });
+    resolve();
+  });
+}
+
+function handleIdleButtonState(buttonElement, buttonIndex, synth, utterThis) {
+  // get the speech from the players state
+  const speech = playerState.speeches[buttonIndex];
+  // get the get the speech chunks from the speech
+  const speechChunks = getSpeechChunks(speech);
+  // update utterThis text and start the synth
+  utterThis.text = speechChunks.shift();
+  synth.cancel();
+  synth.speak(utterThis);
+  // update the state of the button so that the UI changes
+  updateButtonUI(buttonElement, "playing");
+  // update the stae of the player to keep track of the chunks create as well the
+  updatePlayerState({
+    speechChunks: speechChunks,
+    lastButtonPressed: buttonElement,
+  });
+}
+
+function updateButtonUI(currentButton = null, buttonState = "idle") {
+  if (buttonState == "idle") {
+    playerState.lastButtonPressed.setAttribute("data-state", buttonState);
+    playerState.lastButtonPressed.childNodes[0].style.opacity = 0; // pause svg
+    playerState.lastButtonPressed.childNodes[1].style.opacity = 1; // play svg
+  } else if (buttonState == "playing") {
+    if (playerState.lastButtonPressed != null) {
+      playerState.lastButtonPressed.setAttribute("data-state", "idle");
+      playerState.lastButtonPressed.childNodes[0].style.opacity = 0; // pause svg
+      playerState.lastButtonPressed.childNodes[1].style.opacity = 1; // play svg
+    }
+    currentButton.setAttribute("data-state", "playing");
+    currentButton.childNodes[0].style.opacity = 1; // pause svg
+    currentButton.childNodes[1].style.opacity = 0; // play svg
+  } else if (buttonState == "pause") {
+    currentButton.setAttribute("data-state", "pause");
+    currentButton.childNodes[0].style.opacity = 0; // pause svg
+    currentButton.childNodes[1].style.opacity = 1; // play svg
+  } else if (buttonState == "resume") {
+    currentButton.setAttribute("data-state", "playing");
+    currentButton.childNodes[0].style.opacity = 1; // pause svg
+    currentButton.childNodes[1].style.opacity = 0; // play svg
+  } else {
+    throw Error("buttonState has unexpected value.");
+  }
+}
+
+function updateSpeechSynthesisSettings(
+  voiceName,
+  pitch,
+  rate,
+  synth,
+  utterThis
+) {
+  utterThis.voice = getVoice(voiceName, synth);
+  utterThis.pitch = pitch;
+  utterThis.rate = rate;
+}
+
+function updatePositionButtonNearHeading(
   buttonElement,
   headingElement,
   headingTextWidth,
@@ -350,483 +638,6 @@ function positionButtonNearHeading(
     (headingElement.clientHeight - buttonHeight) / 2
   }px)`;
 }
-
-//       // prepare the speech
-//       let speech = getHeadingText(heading);
-//       let nextSibling = heading;
-//       while (nextSibling.nextElementSibling) {
-//         nextSibling = nextSibling.nextElementSibling;
-//         const { text, headindFound } = getTextFromElement(nextSibling);
-//         speech += text;
-//         if (headindFound) {
-//           break;
-//         }
-//       }
-//       logger.info("created speech:", speech);
-//       // update arrays for buttons and scheeches
-//       updateState({
-//         buttons: [...state.buttons, newButton],
-//         speeches: [...state.speeches, speech],
-//       });
-//       logger.state("updated buttons & speeches", state);
-
-//       // add event listener
-//       newButton.addEventListener("click", async (e) => {
-//         if (state.unfinishedCode) {
-//           if (config.logger) {
-//             logger.err(
-//               "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
-//             );
-//           } else {
-//             console.error(
-//               "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
-//             );
-//           }
-//           return;
-//         }
-//         let element = e.currentTarget;
-//         let speech = state.speeches[i];
-//         await new Promise((resolve) => {
-//           updateState({ unfinishedCode: true });
-//           if (element.getAttribute("data-state") == "idle") {
-//             // cancel is needed otherwise it may never start in chrome.
-//             synth.cancel();
-//             logger.synth("canceled");
-//             // we get all the speechChunks for the speech
-
-//             let speechChunks = getSpeechChunks(speech);
-//             logger.info("prepared speech chunks:", speechChunks);
-//             // we use the first to be uttered
-//             utterThis.text = speechChunks.shift(1);
-//             synth.speak(utterThis);
-//             logger.synth("utters:", utterThis.text);
-//             // we update the state of the button
-//             updateButton({
-//               button: element,
-//               buttonState: "playing",
-//               buttonPauseSvg: pauseSvg,
-//             });
-//             logger.button("updated button-state to playing");
-//             // we update into the state:
-//             // - speechChunks to check them again when the speech ends.
-//             // - lastButtonPressed to be able to alter the state of it in case of other button being pressed while playing
-//             // - lastButtonPressedSvg to have access to the playSvg of this button when the state is changed to idle or paused
-//             updateState({
-//               speechChunks: speechChunks,
-//               lastButtonPressed: element,
-//               lastButtonPressedSvg: playSvg,
-//             });
-//           } else if (element.getAttribute("data-state") == "playing") {
-//             synth.pause();
-//             logger.synth("paused");
-//             updateButton({
-//               button: element,
-//               buttonState: "pause",
-//               buttonPlaySvg: playSvg,
-//             });
-//             logger.button("updated button-state to pause");
-//           } else if (element.getAttribute("data-state") == "pause") {
-//             synth.resume();
-//             logger.synth("resume");
-//             updateButton({
-//               button: element,
-//               buttonState: "resume",
-//               buttonPauseSvg: pauseSvg,
-//             });
-//             logger.button("updated button-state to playing(resumed)");
-//           } else {
-//             throw Error("data-state has unexpected value.");
-//           }
-//           updateState({ unfinishedCode: false });
-//           resolve();
-//         });
-//       });
-//       logger.info("added event listener on button");
-//       // render the button
-//       let parentNode = heading.parentNode;
-//       parentNode.insertBefore(newButton, heading);
-//       logger.dom("added button");
-//     }
-
-//     // ~~~~~~ synth events ~~~~~~
-//     synth.onvoiceschanged = () => {
-//       updateSpeechSynthesisSettings();
-//     };
-
-//     utterThis.onend = () => {
-//       if (state.speechChunks.length > 0) {
-//         utterThis.text = state.speechChunks[0];
-//         updateState({ speechChunks: state.speechChunks.slice(1) });
-//         logger.state("updated speechCunks", state);
-//         synth.speak(utterThis);
-//         logger.synth("utters next available chun:", utterThis.text);
-//       } else if (isUtteredFromThisSynthesis()) {
-//         updateButton({ buttonState: "idle" });
-//         logger.synth("stopped uttering");
-//         logger.button("updated button-state to idle(stopped playing)");
-//       }
-//     };
-
-//     utterThis.onerror = (event) => {
-//       if (config.logger) {
-//         logger.err("Error occurred:", event.error);
-//       } else {
-//         console.error("Error occurred:", event.error);
-//       }
-//     };
-
-//     // ~~~~~~ window events ~~~~~~
-//     window.addEventListener("resize", () => {
-//       state.buttons.forEach((button, i) => {
-//         positionButton(button, state.headings[i]);
-//       });
-//     });
-
-//     window.addEventListener("load", function () {
-//       state.buttons.forEach((button, i) => {
-//         positionButton(button, state.headings[i]);
-//       });
-//     });
-
-//     // ~~~~~~ helping functions ~~~~~~
-
-//     // side effects: changes the state.
-//     function updateState(newState, oldState = state) {
-//       state = { ...oldState, ...newState };
-//     }
-
-//     // side effects: changes lastButtonPressed attribute and innerHTML.
-//     function updateButton({
-//       button = null,
-//       buttonState = "idle",
-//       buttonPauseSvg = null,
-//       buttonPlaySvg = null,
-//       lastButtonPressed = state.lastButtonPressed,
-//       lastButtonPressedSvg = state.lastButtonPressedSvg,
-//     } = {}) {
-//       if (buttonState == "idle") {
-//         lastButtonPressed.setAttribute("data-state", buttonState);
-//         lastButtonPressed.innerHTML = "";
-//         lastButtonPressed.appendChild(lastButtonPressedSvg);
-//       } else if (buttonState == "playing") {
-//         if (state.lastButtonPressed != null) {
-//           state.lastButtonPressed.setAttribute("data-state", "idle");
-//           state.lastButtonPressed.innerHTML = "";
-//           state.lastButtonPressed.appendChild(state.lastButtonPressedSvg);
-//           logger.button("updated button-state to idle(cancelled playing)");
-//         }
-//         button.setAttribute("data-state", "playing");
-//         button.innerHTML = "";
-//         button.appendChild(buttonPauseSvg);
-//       } else if (buttonState == "pause") {
-//         button.setAttribute("data-state", "pause");
-//         button.innerHTML = "";
-//         button.appendChild(buttonPlaySvg);
-//       } else if (buttonState == "resume") {
-//         button.setAttribute("data-state", "playing");
-//         button.innerHTML = "";
-//         button.appendChild(buttonPauseSvg);
-//       } else {
-//         throw Error("buttonState has unexpected value.");
-//       }
-//     }
-
-//     // with side effects: changes utterThis and config.
-//     function updateSpeechSynthesisSettings({
-//       voiceName = config.voiceName,
-//       pitch = config.pitch,
-//       rate = config.rate,
-//     } = {}) {
-//       utterThis.voice = getVoice(voiceName);
-//       utterThis.pitch = pitch;
-//       utterThis.rate = rate;
-//       config.voiceName = voiceName;
-//       config.pitch = pitch;
-//       config.rate = rate;
-//       logger.synth("updated voiceName, pitch & rate", {
-//         voiceName,
-//         pitch,
-//         rate,
-//       });
-//     }
-
-//     // no side effects.
-//     function getVoice(voiceName) {
-//       return synth.getVoices().find((voice) => voice.name === voiceName);
-//     }
-
-//     // no side effects.
-//     function getHeadings({
-//       targetHeadings = config.targetHeadings,
-//       ignoredClasses = config.ignoredClasses,
-//     } = {}) {
-//       return Array.from(document.querySelectorAll(targetHeadings.join(", ")))
-//         .filter(
-//           (heading) =>
-//             !ignoredClasses.some((x) => heading.classList.contains(x))
-//         )
-//         .filter((heading) => isElementVisible(heading));
-//     }
-
-//     // no side effects.
-//     function isUtteredFromThisSynthesis({
-//       lastButtonPressed = state.lastButtonPressed,
-//     } = {}) {
-//       return (
-//         lastButtonPressed &&
-//         lastButtonPressed.getAttribute("data-state") != "idle"
-//       );
-//     }
-
-//     // no side effects.
-//     function createSVG(title) {
-//       // Create an SVG element
-//       const svgElement = document.createElementNS(
-//         "http://www.w3.org/2000/svg",
-//         "svg"
-//       );
-//       svgElement.setAttribute("version", "1.1");
-//       svgElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-//       svgElement.setAttribute("width", "14");
-//       svgElement.setAttribute("height", "14");
-//       svgElement.setAttribute("viewBox", "0 0 32 32");
-
-//       // Create a title element
-//       const titleElement = document.createElementNS(
-//         "http://www.w3.org/2000/svg",
-//         "title"
-//       );
-//       titleElement.textContent = title;
-//       svgElement.appendChild(titleElement);
-
-//       // Create a path element
-//       const pathElement = document.createElementNS(
-//         "http://www.w3.org/2000/svg",
-//         "path"
-//       );
-//       if (title == "play") {
-//         pathElement.setAttribute("d", "M6 4l20 12-20 12z");
-//       } else {
-//         pathElement.setAttribute("d", "M4 4h10v24h-10zM18 4h10v24h-10z");
-//       }
-//       svgElement.appendChild(pathElement);
-//       svgElement.classList.add("synthesis_player_svg");
-//       return svgElement;
-//     }
-
-//     // with side effects: changes button and uses positionButton function.
-//     function styleButton(button, heading) {
-//       button.classList.add("synthesis_player_btn");
-//       positionButton(button, heading);
-//     }
-
-//     // with side effects: changes button
-//     function positionButton(button, heading) {
-//       let textWidth = getTextWidth(heading);
-//       const maxButtonRight = window.innerWidth - 30;
-//       let buttonLeft;
-//       if (textWidth < heading.clientWidth) {
-//         buttonLeft = getTextWidth(heading) + heading.offsetLeft;
-//       } else {
-//         buttonLeft = heading.clientWidth + heading.offsetLeft - 25;
-//       }
-//       button.style.left = Math.min(buttonLeft, maxButtonRight) + "px";
-
-//       let buttonHeight = 24;
-//       button.style.transform = `translateY(${
-//         (heading.clientHeight - buttonHeight) / 2
-//       }px)`;
-//     }
-
-//     // with side effects: added and then removed an element to the DOM
-//     function getTextWidth(element) {
-//       const offScreenDiv = document.createElement("div");
-//       offScreenDiv.style.position = "absolute";
-//       offScreenDiv.style.visibility = "hidden";
-//       offScreenDiv.style.whiteSpace = "nowrap";
-//       offScreenDiv.style.font = window.getComputedStyle(element).font;
-
-//       const textNode = document.createTextNode(element.textContent);
-//       offScreenDiv.appendChild(textNode);
-
-//       document.body.appendChild(offScreenDiv);
-//       const width = offScreenDiv.clientWidth;
-//       document.body.removeChild(offScreenDiv);
-//       return width;
-//     }
-
-//     // no side effects.
-//     function createCSSelement({ colors = config.colors } = {}) {
-//       const style = document.createElement("style");
-//       const cssRules = `
-//               :root {
-//                   --synthesis-brand-100: ${colors[100]};
-//                   --synthesis-brand-200: ${colors[200]};
-//                   --synthesis-brand-300: ${colors[300]};
-//                   --synthesis-brand-400: ${colors[400]};
-//                   --synthesis-brand-500: ${colors[500]};
-//                   --synthesis-brand-600: ${colors[600]};
-//                   --synthesis-brand-700: ${colors[700]};
-//                   --synthesis-brand-800: ${colors[800]};
-//                   --synthesis-brand-900: ${colors[900]};
-//               }
-
-//               .synthesis_player_btn {
-//                   position: absolute;
-//                   background-color: var(--synthesis-brand-500);
-//                   width: 24px;
-//                   height: 24px;
-//                   border-radius: 50%;
-//                   border: 2px solid var(--synthesis-brand-600);
-//                   opacity: 0.75;
-//                   transition: 0.25s opacity, 0.25s background-color;
-//                   z-index:100;
-//               }
-
-//               .synthesis_player_btn svg,
-//               .synthesis_player_btn svg {
-//                   position: absolute;
-//                   left: 50%;
-//                   top: 50%;
-//                   transform: translate(-50%, -50%);
-//                   fill: var(--synthesis-brand-100);
-//               }
-
-//               .synthesis_player_btn:not([data-state="playing"]) svg {
-//                   left: calc(50% + 1px);
-//               }
-
-//               .synthesis_player_btn:hover,
-//               .synthesis_player_btn:hover {
-//                   background-color: var(--synthesis-brand-600);
-//                   border-color: var(--synthesis-brand-700);
-//                   cursor: pointer;
-//                   opacity: 1;
-//               }
-
-//               .synthesis_player_btn:active,
-//               .synthesis_player_btn:active {
-//                   background-color: var(--synthesis-brand-800);
-//                   border-color: var(--synthesis-brand-800);
-//               }
-
-//               .synthesis_player_btn[data-state="playing"],
-//               .synthesis_player_btn[data-state="playing"],
-//               .synthesis_player_btn[data-state="pause"],
-//               .synthesis_player_btn[data-state="pause"] {
-//                   background-color: var(--synthesis-brand-700);
-//                   border-color: var(--synthesis-brand-800);
-//               }
-//           `;
-//       style.textContent = cssRules;
-//       return style;
-//     }
-
-//     function createButton(svg) {
-//       let newButton = document.createElement("button");
-//       newButton.appendChild(svg);
-//       newButton.setAttribute("data-state", "idle");
-//       return newButton;
-//     }
-
-//     function getHeadingText(heading) {
-//       let headingText = getTextFromElement(heading, true).text.trim();
-//       if (!correctEndPunctation(headingText)) {
-//         headingText += ".";
-//       }
-//       return headingText;
-//     }
-
-//     function getSpeechChunks(speech) {
-//       let words = speech.split(" ").filter((x) => x != "");
-//       let speechChunks = [];
-//       let speechChunk = "";
-//       words.forEach((word, i) => {
-//         speechChunk += word + " ";
-//         if (
-//           (speechChunk.length > 150 && correctEndPunctation(speechChunk)) ||
-//           speechChunk.length > 200 ||
-//           i == words.length - 1
-//         ) {
-//           speechChunks.push(speechChunk);
-//           speechChunk = "";
-//         }
-//       });
-//       if (speechChunk != "") {
-//         speechChunks.push(speechChunk);
-//       }
-//       return speechChunks;
-//     }
-
-//     // no side effects, TODO: break this function to smaller ones.
-//     function getTextFromElement(element, firstHeading = false) {
-//       if (element && element.tagName) {
-//         if (
-//           element.tagName == "SCRIPT" ||
-//           element.classList.contains("synthesis_player_btn") ||
-//           !isElementVisible(element)
-//         ) {
-//           return { text: "", headindFound: false };
-//         }
-//       }
-//       if (element.nodeType === Node.TEXT_NODE) {
-//         return { text: element.textContent.trim(), headindFound: false };
-//       } else if (isHeadingElement(element) && !firstHeading) {
-//         return { text: "", headindFound: true };
-//       } else {
-//         let text = "";
-//         let result = { headindFound: false };
-//         for (let child of element.childNodes) {
-//           result = getTextFromElement(child);
-//           if (result.text.trim() != "") {
-//             text += " " + result.text;
-//           }
-//           if (result.headindFound) {
-//             break;
-//           }
-//         }
-//         if (
-//           (element.tagName == "LI" || element.tagName == "P") &&
-//           !correctEndPunctation(text)
-//         ) {
-//           text += ".";
-//         }
-//         if (element.tagName == "BUTTON") {
-//           text = "(Button): " + text;
-//         }
-//         if (element.tagName == "A") {
-//           // TODO: specify where the link is refering to.
-//           text = "(Link): " + text;
-//         }
-//         return { text, headindFound: result.headindFound };
-//       }
-//     }
-
-//     // no side effects
-//     function correctEndPunctation(my_string) {
-//       return /[.!?:]\s*$/.test(my_string);
-//     }
-
-//     // no side effects
-//     function isElementVisible(element) {
-//       const styles = window.getComputedStyle(element);
-//       return (
-//         styles.display !== "none" &&
-//         styles.visibility !== "hidden" &&
-//         styles.opacity !== "0"
-//       );
-//     }
-
-//     // no side effects
-//     function isHeadingElement(element, targetHeadings = config.targetHeadings) {
-//       return (
-//         element &&
-//         element.tagName &&
-//         targetHeadings.some(
-//           (x) => x.toLowerCase() === element.tagName.toLowerCase()
-//         )
-//       );
-//     }
 
 //     // ~~~~~~ for DOM mutation. ~~~~~~
 //     function findClosestHeading(element) {
