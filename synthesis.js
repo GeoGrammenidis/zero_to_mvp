@@ -24,8 +24,7 @@ function renderPlayer(config = {}) {
     logger.info("configurations initialized:", config);
 
     // preapre synth & utterThis
-    const synth = window.speechSynthesis;
-    synth.cancel();
+    window.speechSynthesis.cancel();
     const utterThis = new SpeechSynthesisUtterance("Default text");
     logger.synth("canceled");
 
@@ -90,12 +89,11 @@ function renderPlayer(config = {}) {
     });
 
     // ~~~~~~ synth events ~~~~~~
-    synth.onvoiceschanged = () => {
+    window.speechSynthesis.onvoiceschanged = () => {
       updateSpeechSynthesisSettings(
         playerState.config.voiceName,
         playerState.config.pitch,
         playerState.config.rate,
-        synth,
         utterThis
       );
       logger.synth("updated voiceName, pitch & rate", {
@@ -110,7 +108,7 @@ function renderPlayer(config = {}) {
         utterThis.text = playerState.speechChunks[0];
         updatePlayerState({ speechChunks: playerState.speechChunks.slice(1) });
         logger.state("updated speechCunks", playerState);
-        synth.speak(utterThis);
+        window.speechSynthesis.speak(utterThis);
         logger.synth("utters next available chunk:", utterThis.text);
       } else if (isUtteredFromThisSynthesis(playerState.lastButtonPressed)) {
         updateButtonUI(playerState.lastButtonPressed, "idle");
@@ -318,8 +316,10 @@ function getTextWidth(element, font) {
   return width;
 }
 
-function getVoice(voiceName, synth) {
-  return synth.getVoices().find((voice) => voice.name === voiceName);
+function getVoice(voiceName) {
+  return window.speechSynthesis
+    .getVoices()
+    .find((voice) => voice.name === voiceName);
 }
 
 function getMutationNodes(nodes) {
@@ -708,14 +708,8 @@ function updateButtonUI(currentButton = null, buttonState = "idle") {
   }
 }
 
-function updateSpeechSynthesisSettings(
-  voiceName,
-  pitch,
-  rate,
-  synth,
-  utterThis
-) {
-  utterThis.voice = getVoice(voiceName, synth);
+function updateSpeechSynthesisSettings(voiceName, pitch, rate, utterThis) {
+  utterThis.voice = getVoice(voiceName);
   utterThis.pitch = pitch;
   utterThis.rate = rate;
 }
@@ -863,7 +857,6 @@ const handleMutation = (mutationsList, observer) => {
             newHeadings.push(heading);
           }
         });
-        console.log("before", playerState);
         // update players state
         let oldArraysLength = playerState.buttons.length;
         updatePlayerState({
@@ -871,7 +864,6 @@ const handleMutation = (mutationsList, observer) => {
           speeches: newStateSpeeches,
           buttons: [...playerState.buttons, ...newStateButtons],
         });
-        console.log("after", playerState);
 
         // add all buttons to the dom.
         newStateButtons.forEach((newButton, i) => {
