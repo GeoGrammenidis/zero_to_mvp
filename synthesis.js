@@ -586,7 +586,7 @@ function createCSSelement(colors, buttonHeight) {
                   border: 2px solid var(--synthesis-brand-600);
                   opacity: 0.75;
                   transition: 0.25s opacity, 0.25s background-color;
-                  z-index:100;
+                  z-index:10000;
               }
 
               .synthesis_player_btn svg,
@@ -636,6 +636,10 @@ function updatePlayerState(newState) {
 }
 
 async function updateButtonState(e, buttonIndex, utterThis) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  console.log("stopped propagation..");
   if (playerState.unfinishedCode) {
     throw new Error(
       "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
