@@ -784,8 +784,6 @@ function removeHeadingsFromState(headingsToRemove) {
 // Function to handle DOM mutations
 const handleMutation = (mutationsList, observer) => {
   for (const mutation of mutationsList) {
-    const headingsToUpdate = new Set(); // may have new headings as well
-    const headingsToRemove = new Set(); // may have headings that are not tracked.
     if (mutation.type === "childList") {
       let addedNodes = getMutationNodes(mutation.addedNodes);
       let removedNodes = getMutationNodes(mutation.removedNodes);
@@ -793,94 +791,8 @@ const handleMutation = (mutationsList, observer) => {
         (node) => node instanceof Text
       );
 
-      // addedTexts must become addedNodes
-      addedNodes.forEach((node) => {
-        if (
-          !(
-            node.tagName == "SCRIPT" ||
-            node.classList.contains("synthesis_player_btn") ||
-            !isElementVisible(node)
-          )
-        ) {
-          // we add previous closest heading
-          headingsToUpdate.add(
-            getClosestHeading(
-              node.previousElementSibling
-                ? node.previousElementSibling
-                : node.parentElement,
-              playerState.config.targetHeadings
-            )
-          );
-          // we add a heading that is descendant of the node OR null.
-          headingsToUpdate.add(
-            getHeadingDescendant(node, playerState.config.targetHeadings)
-          );
-
-          // if the node is heading the we add the node
-          if (isHeadingElement(node, playerState.config.targetHeadings)) {
-            headingsToUpdate.add(node);
-          }
-        }
-      });
-      headingsToUpdate.delete(null);
-      if (headingsToUpdate.size > 0) {
-        // we save temporary all the speeches for current buttons
-        let newStateSpeeches = [...playerState.speeches];
-        let newStateButtons = [];
-        let newHeadings = [];
-        headingsToUpdate.forEach((heading) => {
-          // create the speech for the speech update or for the new button
-          let speech = getSpeech(heading, playerState.config.targetHeadings);
-          let indexReturned = playerState.headings.findIndex(
-            (x) => x == heading
-          );
-
-          if (indexReturned > 0) {
-            // if it isn't a new heading we just update the old speech.
-            newStateSpeeches[indexReturned] = speech;
-          } else {
-            // create a button
-            let newButton = createButton(playerState.config.buttonHeight);
-
-            // reposition the button
-            updatePositionButtonNearHeading(
-              newButton,
-              heading,
-              getTextWidth(heading, heading.style.font),
-              window.innerWidth - playerState.config.buttonHeight - 6,
-              playerState.config.buttonHeight
-            );
-
-            // save the speech, the button and the heading
-            newStateSpeeches.push(speech);
-            newStateButtons.push(newButton);
-            newHeadings.push(heading);
-          }
-        });
-        // update players state
-        let oldArraysLength = playerState.buttons.length;
-        updatePlayerState({
-          headings: [...playerState.headings, ...newHeadings],
-          speeches: newStateSpeeches,
-          buttons: [...playerState.buttons, ...newStateButtons],
-        });
-
-        // add all buttons to the dom.
-        newStateButtons.forEach((newButton, i) => {
-          // add event listener
-          newButton.addEventListener("click", (e) =>
-            updateButtonState(e, oldArraysLength + i, playerState.utterThis)
-          );
-          // append button before the heading into DOM
-          let parentNode = newHeadings[i].parentNode;
-          parentNode.insertBefore(newButton, newHeadings[i]);
-        });
-      }
-
-      headingsToRemove.delete(null);
-      if (headingsToRemove.size > 0) {
-        // removeHeadingsFromState(headingsToRemove);
-      }
+      handleMutationAddedNodes(addedNodes);
+      handleMutationRemovedNodes(removedNodes, mutation);
     } else if (mutation.type === "characterData") {
       // TODO: check this.
       console.warn(
@@ -914,3 +826,155 @@ const target = document.body; // You can change this to observe a specific eleme
 
 // Start observing the target element with the specified options
 observer.observe(target, observerOptions);
+
+function handleMutationAddedNodes(addedNodes) {
+  let headingsToUpdate = new Set();
+  addedNodes.forEach((node) => {
+    if (
+      !(
+        node.tagName == "SCRIPT" ||
+        node.classList.contains("synthesis_player_btn") ||
+        !isElementVisible(node)
+      )
+    ) {
+      // we add previous closest heading
+      headingsToUpdate.add(
+        getClosestHeading(
+          node.previousElementSibling
+            ? node.previousElementSibling
+            : node.parentElement,
+          playerState.config.targetHeadings
+        )
+      );
+      // we add a heading that is descendant of the node OR null.
+      headingsToUpdate.add(
+        getHeadingDescendant(node, playerState.config.targetHeadings)
+      );
+
+      // if the node is heading the we add the node
+      if (isHeadingElement(node, playerState.config.targetHeadings)) {
+        headingsToUpdate.add(node);
+      }
+    }
+  });
+  updateHeadings(headingsToUpdate);
+}
+
+function handleMutationRemovedNodes(removedNodes, mutation) {
+  if (removedNodes.length > 0) {
+    let headingsToRemove = new Set();
+    let headingsToUpdate = new Set();
+    removedNodes.forEach((node) => {
+      // save all nodes removed that have a heading.
+      node
+        .querySelectorAll(playerState.config.targetHeadings)
+        .forEach((heading) => {
+          if (
+            playerState.headings.some(
+              (stateHeading) => stateHeading === heading
+            )
+          ) {
+            headingsToRemove.add(heading);
+          }
+        });
+    });
+    headingsToUpdate.add(
+      getClosestHeading(
+        mutation.previousSibling.previousElementSibling
+          ? mutation.previousSibling.previousElementSibling
+          : mutation.previousSibling.parentElement,
+        playerState.config.targetHeadings
+      )
+    );
+    updateHeadings(headingsToUpdate);
+    removeHeadings(headingsToRemove);
+  }
+}
+
+function updateHeadings(headingsToUpdate) {
+  headingsToUpdate.delete(null);
+  if (headingsToUpdate.size > 0) {
+    // we save temporary all the speeches for current buttons
+    let newStateSpeeches = [...playerState.speeches];
+    let newStateButtons = [];
+    let newHeadings = [];
+    headingsToUpdate.forEach((heading) => {
+      // create the speech for the speech update or for the new button
+      let speech = getSpeech(heading, playerState.config.targetHeadings);
+      let indexReturned = playerState.headings.findIndex((x) => x == heading);
+
+      if (indexReturned > 0) {
+        // if it isn't a new heading we just update the old speech.
+        newStateSpeeches[indexReturned] = speech;
+      } else {
+        // create a button
+        let newButton = createButton(playerState.config.buttonHeight);
+
+        // reposition the button
+        updatePositionButtonNearHeading(
+          newButton,
+          heading,
+          getTextWidth(heading, heading.style.font),
+          window.innerWidth - playerState.config.buttonHeight - 6,
+          playerState.config.buttonHeight
+        );
+
+        // save the speech, the button and the heading
+        newStateSpeeches.push(speech);
+        newStateButtons.push(newButton);
+        newHeadings.push(heading);
+      }
+    });
+    // update players state
+    let oldArraysLength = playerState.buttons.length;
+    updatePlayerState({
+      headings: [...playerState.headings, ...newHeadings],
+      speeches: newStateSpeeches,
+      buttons: [...playerState.buttons, ...newStateButtons],
+    });
+
+    // add all buttons to the dom.
+    newStateButtons.forEach((newButton, i) => {
+      // add event listener
+      newButton.addEventListener("click", (e) =>
+        updateButtonState(e, oldArraysLength + i, playerState.utterThis)
+      );
+      // append button before the heading into DOM
+      let parentNode = newHeadings[i].parentNode;
+      parentNode.insertBefore(newButton, newHeadings[i]);
+    });
+  }
+}
+
+function removeHeadings(headingsToRemove) {
+  let indexesToRemove = [];
+  headingsToRemove.forEach((heading) => {
+    indexesToRemove.push(playerState.headings.findIndex((x) => x == heading));
+  });
+  let newButtons;
+  let newSpeeches;
+  let newHeadings;
+  indexesToRemove
+    .sort()
+    .reverse()
+    .forEach((index) => {
+      playerState.buttons[index].remove();
+      newButtons = [
+        ...playerState.buttons.slice(0, index),
+        ...playerState.buttons.slice(index + 1),
+      ];
+      newSpeeches = [
+        ...playerState.speeches.slice(0, index),
+        ...playerState.speeches.slice(index + 1),
+      ];
+      newHeadings = [
+        ...playerState.headings.slice(0, index),
+        ...playerState.headings.slice(index + 1),
+      ];
+    });
+  updatePlayerState({
+    buttons: newButtons,
+    speeches: newSpeeches,
+    headings: newHeadings,
+  });
+}
