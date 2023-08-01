@@ -8,6 +8,8 @@ let playerState = {
   buttons: [], // created player's button elements
   speeches: [], // created player's button elements
   speechChunks: [], // used to keep chunks of long speeches when uttered.
+  config: {},
+  utterThis: null,
 };
 
 // TODO: check the configuration object that it has the correct schema.
@@ -29,19 +31,24 @@ function renderPlayer(config = {}) {
 
     // initialize player state
     updatePlayerState({
-      headings: getHeadings(config.targetHeadings, document, isElementVisible),
+      headings: getHeadings(config.targetHeadings, document),
+      config,
+      utterThis,
     });
     logger.state("playerste: initialized", playerState);
 
     // create a CSS elemenet and attach it to the head.
     document.head.appendChild(
-      createCSSelement(config.colors, config.buttonHeight)
+      createCSSelement(
+        playerState.config.colors,
+        playerState.config.buttonHeight
+      )
     );
     logger.dom("Added inline CSS into head");
 
     playerState.headings.forEach((heading, i) => {
       // create a button
-      let newButton = createButton(config.buttonHeight);
+      let newButton = createButton(playerState.config.buttonHeight);
       logger.info(
         `CREATED: 1 button & 2 svg elements. APPENDED: the svgs into button FOR:`,
         heading
@@ -52,13 +59,13 @@ function renderPlayer(config = {}) {
         newButton,
         heading,
         getTextWidth(heading),
-        window.innerWidth - config.buttonHeight - 6,
-        config.buttonHeight
+        window.innerWidth - playerState.config.buttonHeight - 6,
+        playerState.config.buttonHeight
       );
       logger.info(`Repositioned the button near the heading`);
 
       // create the speech for the button
-      let speech = getSpeech(heading, config.targetHeadings);
+      let speech = getSpeech(heading, playerState.config.targetHeadings);
       logger.info("created speech:", speech);
 
       // save the speech and the button
@@ -73,7 +80,7 @@ function renderPlayer(config = {}) {
 
       // add event listener
       newButton.addEventListener("click", (e) =>
-        updateButtonState(e, i, synth, utterThis)
+        updateButtonState(e, i, utterThis)
       );
 
       // added button to the dom
@@ -85,16 +92,16 @@ function renderPlayer(config = {}) {
     // ~~~~~~ synth events ~~~~~~
     synth.onvoiceschanged = () => {
       updateSpeechSynthesisSettings(
-        config.voiceName,
-        config.pitch,
-        config.rate,
+        playerState.config.voiceName,
+        playerState.config.pitch,
+        playerState.config.rate,
         synth,
         utterThis
       );
       logger.synth("updated voiceName, pitch & rate", {
-        voiceName: config.voiceName,
-        pitch: config.pitch,
-        rate: config.rate,
+        voiceName: playerState.config.voiceName,
+        pitch: playerState.config.pitch,
+        rate: playerState.config.rate,
       });
     };
 
@@ -113,7 +120,7 @@ function renderPlayer(config = {}) {
     };
 
     utterThis.onerror = (event) => {
-      if (config.logger.err) {
+      if (playerState.config.logger.err) {
         logger.err("Error occurred:", event.error);
       } else {
         console.error("Error occurred:", event.error);
@@ -127,8 +134,8 @@ function renderPlayer(config = {}) {
           button,
           playerState.headings[i],
           getTextWidth(playerState.headings[i]),
-          window.innerWidth - config.buttonHeight - 6,
-          config.buttonHeight
+          window.innerWidth - playerState.config.buttonHeight - 6,
+          playerState.config.buttonHeight
         );
       });
     });
@@ -139,8 +146,8 @@ function renderPlayer(config = {}) {
           button,
           playerState.headings[i],
           getTextWidth(playerState.headings[i]),
-          window.innerWidth - config.buttonHeight - 6,
-          config.buttonHeight
+          window.innerWidth - playerState.config.buttonHeight - 6,
+          playerState.config.buttonHeight
         );
       });
     });
@@ -171,25 +178,20 @@ function getInitialConfig() {
     rate: 1.2,
     voiceName: "Google UK English Male",
     logger: {
-      info: true,
-      warn: true,
-      err: true,
-      state: true,
-      dom: true,
-      synth: true,
-      button: true,
+      info: false,
+      warn: false,
+      err: false,
+      state: false,
+      dom: false,
+      synth: false,
+      button: false,
       colored: false,
     },
     buttonHeight: 24,
   };
 }
 
-function getHeadings(
-  headingsArray,
-  containerElement,
-  isVisibleFunc,
-  computeStyles = true
-) {
+function getHeadings(headingsArray, containerElement, computeStyles = true) {
   if (
     !Array.isArray(headingsArray) ||
     headingsArray.length == 0 ||
@@ -200,7 +202,7 @@ function getHeadings(
     );
   }
   return Array.from(containerElement.querySelectorAll(headingsArray)).filter(
-    (heading) => isVisibleFunc(heading, computeStyles)
+    (heading) => isElementVisible(heading, computeStyles)
   );
 }
 
@@ -320,6 +322,127 @@ function getVoice(voiceName, synth) {
   return synth.getVoices().find((voice) => voice.name === voiceName);
 }
 
+function getMutationNodes(nodes) {
+  if (!nodes) {
+    throw new Error("Invalid nodes provided.");
+  }
+  return Array(...nodes)
+    .filter((node) => {
+      return node instanceof Element;
+    })
+    .filter(
+      (element) =>
+        // isElementVisible(element) && //this one creates bug. TODO: check why.
+        element.style.display != "none" &&
+        element.style.opacity !== "0" &&
+        element.style.visibility != "hidden" &&
+        !element.classList.contains("synthesis_player_btn") &&
+        !element.classList.contains("synthesis_player_svg")
+    );
+}
+
+// checked
+function getClosestHeading(element, targetHeadings) {
+  // case the element is actually a heading
+  if (isHeadingElement(element, targetHeadings)) {
+    return element;
+  }
+
+  // case the element exists in a heading
+  let descendantHeading = getHeadingDescendant(element, targetHeadings);
+  if (descendantHeading) {
+    return descendantHeading;
+  }
+
+  let sibling = element;
+  while (sibling) {
+    if (sibling.previousElementSibling) {
+      sibling = sibling.previousElementSibling;
+      if (isHeadingElement(sibling, targetHeadings)) {
+        break;
+      }
+    } else {
+      sibling = sibling.parentNode;
+      if (sibling === undefined) {
+        console.log("!!!!!!!!!!!");
+      }
+      if (sibling === document.body || sibling == undefined) {
+        sibling = null;
+        break;
+      }
+    }
+  }
+  if (sibling) {
+    let targetOrHeading = getNextTargetOrHeading(
+      element,
+      sibling.nextElementSibling,
+      targetHeadings
+    );
+    if (targetOrHeading != "target") {
+      return null;
+    }
+  }
+
+  return sibling;
+}
+
+// checked.
+function getHeadingDescendant(element, targetHeadings) {
+  if (!element) {
+    console.warn("parameter given into findHeadingDeescendant was wrong.");
+    return null;
+  }
+  let currentElement = element.parentElement;
+  while (currentElement) {
+    if (isHeadingElement(currentElement, targetHeadings)) {
+      return currentElement; // Found a heading descendant, return it
+    }
+    currentElement = currentElement.parentElement;
+  }
+  return null; // No heading descendant found, return null
+}
+
+// checked.
+function getNextTargetOrHeading(
+  targetElement,
+  currentElement,
+  targetHeadings,
+  nextSiblings = []
+) {
+  // Check for target element
+  if (currentElement === targetElement) {
+    return "target";
+  }
+  // Check for heading element
+  if (isHeadingElement(currentElement, targetHeadings)) {
+    return "heading";
+  }
+
+  if (currentElement.firstElementChild) {
+    return getNextTargetOrHeading(
+      targetElement,
+      currentElement.firstElementChild,
+      targetHeadings,
+      currentElement.nextElementSibling
+        ? [...nextSiblings, currentElement.nextElementSibling]
+        : nextSiblings
+    );
+  } else if (currentElement.nextElementSibling) {
+    return getNextTargetOrHeading(
+      targetElement,
+      currentElement.nextElementSibling,
+      targetHeadings,
+      nextSiblings
+    );
+  } else {
+    return getNextTargetOrHeading(
+      targetElement,
+      nextSiblings.slice(-1)[0],
+      targetHeadings,
+      nextSiblings.slice(0, -1)
+    );
+  }
+}
 // ~~~~~~~~~ checkers ~~~~~~~~~
 // TODO: computedStyles needs to be checked.
 function isElementVisible(element, computeStyles = true) {
@@ -346,7 +469,8 @@ function isElementVisible(element, computeStyles = true) {
   return (
     styles.display !== "none" &&
     styles.visibility !== "hidden" &&
-    styles.opacity !== "0"
+    styles.opacity !== "0" &&
+    getTextWidth(element) > 2
   );
 }
 
@@ -511,7 +635,7 @@ function updatePlayerState(newState) {
   playerState = { ...playerState, ...newState };
 }
 
-async function updateButtonState(e, buttonIndex, synth, utterThis) {
+async function updateButtonState(e, buttonIndex, utterThis) {
   if (playerState.unfinishedCode) {
     throw new Error(
       "Clicked too fast. Previous click event hasn't run every command yet. Ignoring the click event."
@@ -524,12 +648,12 @@ async function updateButtonState(e, buttonIndex, synth, utterThis) {
     const buttonState = buttonElement.getAttribute("data-state");
 
     if (buttonState === "idle") {
-      handleIdleButtonState(buttonElement, buttonIndex, synth, utterThis);
+      handleIdleButtonState(buttonElement, buttonIndex);
     } else if (buttonState === "playing") {
-      synth.pause();
+      window.speechSynthesis.pause();
       updateButtonUI(buttonElement, "pause");
     } else if (buttonState === "pause") {
-      synth.resume();
+      window.speechSynthesis.resume();
       updateButtonUI(buttonElement, "resume");
     } else {
       throw new Error("data-state has unexpected value.");
@@ -539,15 +663,15 @@ async function updateButtonState(e, buttonIndex, synth, utterThis) {
   });
 }
 
-function handleIdleButtonState(buttonElement, buttonIndex, synth, utterThis) {
+function handleIdleButtonState(buttonElement, buttonIndex) {
   // get the speech from the players state
   const speech = playerState.speeches[buttonIndex];
   // get the get the speech chunks from the speech
   const speechChunks = getSpeechChunks(speech);
   // update utterThis text and start the synth
-  utterThis.text = speechChunks.shift();
-  synth.cancel();
-  synth.speak(utterThis);
+  playerState.utterThis.text = speechChunks.shift();
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(playerState.utterThis);
   // update the state of the button so that the UI changes
   updateButtonUI(buttonElement, "playing");
   // update the stae of the player to keep track of the chunks create as well the
@@ -639,323 +763,162 @@ function updatePositionButtonNearHeading(
   }px)`;
 }
 
-//     // ~~~~~~ for DOM mutation. ~~~~~~
-//     function findClosestHeading(element) {
-//       if (isHeadingElement(element)) {
-//         return element;
-//       }
-//       let descendantHeading = findHeadingDescendant(element);
-//       if (descendantHeading) {
-//         return descendantHeading;
-//       }
-//       let sibling = element;
-//       while (sibling) {
-//         sibling = sibling.previousElementSibling;
-//         if (sibling) {
-//           if (isHeadingElement(sibling)) {
-//             break;
-//           }
-//         } else {
-//           sibling = sibling?.parentNode;
-//           if (sibling === document.body || sibling == undefined) {
-//             sibling = null;
-//             break;
-//           }
-//         }
-//       }
+function removeHeadingsFromState(headingsToRemove) {
+  const newButtons = [...playerState.buttons];
+  const newSpeeches = [...playerState.speeches];
+  const newHeadings = [...playerState.headings];
 
-//       if (sibling) {
-//         let targetOrHeading = findTargetOrHeading(
-//           element,
-//           sibling.nextElementSibling
-//         );
-//         if (targetOrHeading != "target") {
-//           return null;
-//         }
-//       }
+  headingsToRemove.forEach((heading) => {
+    const index = newHeadings.findIndex((x) => x === heading);
+    if (index !== -1) {
+      newButtons[index].remove();
+      newButtons.splice(index, 1);
+      newSpeeches.splice(index, 1);
+      newHeadings.splice(index, 1);
+    } else {
+      logger.warn(`Heading not found: ${heading}`);
+    }
+  });
 
-//       return sibling;
-//     }
+  updatePlayerState({
+    buttons: newButtons,
+    speeches: newSpeeches,
+    headings: newHeadings,
+  });
+}
 
-//     function findTargetOrHeading(targetElement, currentElement) {
-//       if (currentElement === targetElement) {
-//         return "target";
-//       }
+// Function to handle DOM mutations
+const handleMutation = (mutationsList, observer) => {
+  for (const mutation of mutationsList) {
+    const headingsToUpdate = new Set(); // may have new headings as well
+    const headingsToRemove = new Set(); // may have headings that are not tracked.
+    if (mutation.type === "childList") {
+      let addedNodes = getMutationNodes(mutation.addedNodes);
+      let removedNodes = getMutationNodes(mutation.removedNodes);
+      let addedTexts = Array(...mutation.removedNodes).filter(
+        (node) => node instanceof Text
+      );
 
-//       // Check for children and their descendants
-//       let child = currentElement.firstElementChild;
-//       while (child) {
-//         const result = findTargetOrHeading(targetElement, child);
-//         if (result === "target" || result === "heading") {
-//           return result;
-//         }
-//         child = child.nextElementSibling;
-//       }
+      // addedTexts must become addedNodes
+      addedNodes.forEach((node) => {
+        if (
+          !(
+            node.tagName == "SCRIPT" ||
+            node.classList.contains("synthesis_player_btn") ||
+            !isElementVisible(node)
+          )
+        ) {
+          // we add previous closest heading
+          headingsToUpdate.add(
+            getClosestHeading(
+              node.previousElementSibling
+                ? node.previousElementSibling
+                : node.parentElement,
+              playerState.config.targetHeadings
+            )
+          );
+          // we add a heading that is descendant of the node OR null.
+          headingsToUpdate.add(
+            getHeadingDescendant(node, playerState.config.targetHeadings)
+          );
 
-//       // Check for heading element
-//       if (isHeadingElement(currentElement)) {
-//         return "heading";
-//       }
+          // if the node is heading the we add the node
+          if (isHeadingElement(node, playerState.config.targetHeadings)) {
+            headingsToUpdate.add(node);
+          }
+        }
+      });
+      headingsToUpdate.delete(null);
+      if (headingsToUpdate.size > 0) {
+        // we save temporary all the speeches for current buttons
+        let newStateSpeeches = [...playerState.speeches];
+        let newStateButtons = [];
+        let newHeadings = [];
+        headingsToUpdate.forEach((heading) => {
+          // create the speech for the speech update or for the new button
+          let speech = getSpeech(heading, playerState.config.targetHeadings);
+          let indexReturned = playerState.headings.findIndex(
+            (x) => x == heading
+          );
 
-//       // Check for siblings
-//       let sibling = currentElement.nextElementSibling;
-//       while (sibling) {
-//         const result = findTargetOrHeading(targetElement, sibling);
-//         if (result === "target" || result === "heading") {
-//           return result;
-//         }
-//         sibling = sibling.nextElementSibling;
-//       }
-//       return "not found";
-//     }
+          if (indexReturned > 0) {
+            // if it isn't a new heading we just update the old speech.
+            newStateSpeeches[indexReturned] = speech;
+          } else {
+            // create a button
+            let newButton = createButton(playerState.config.buttonHeight);
 
-//     function findHeadingDescendant(element) {
-//       if (!element) {
-//         logger.warn("parameter given into findHeadingDeescendant was wrong.");
-//         return null;
-//       }
-//       let currentElement = element.parentElement;
-//       while (currentElement) {
-//         if (isHeadingElement(currentElement)) {
-//           return currentElement; // Found a heading descendant, return it
-//         }
-//         currentElement = currentElement.parentElement;
-//       }
-//       return null; // No heading descendant found, return null
-//     }
-//     if (config.playground) {
-//       console.log(
-//         "change_element",
-//         findClosestHeading(document.querySelector("#change_element"))
-//       );
-//       console.log(
-//         "trace_1",
-//         findClosestHeading(document.querySelector("#trace_1"))
-//       );
+            // reposition the button
+            updatePositionButtonNearHeading(
+              newButton,
+              heading,
+              getTextWidth(heading, heading.style.font),
+              window.innerWidth - playerState.config.buttonHeight - 6,
+              playerState.config.buttonHeight
+            );
 
-//       console.log(
-//         "trace_2",
-//         findClosestHeading(document.querySelector("#trace_2"))
-//       );
-//       console.log(
-//         "trace_3",
-//         findClosestHeading(document.querySelector("#trace_3"))
-//       );
-//       console.log(
-//         "trace_4",
-//         findClosestHeading(document.querySelector("#trace_4"))
-//       );
-//     }
+            // save the speech, the button and the heading
+            newStateSpeeches.push(speech);
+            newStateButtons.push(newButton);
+            newHeadings.push(heading);
+          }
+        });
+        console.log("before", playerState);
+        // update players state
+        let oldArraysLength = playerState.buttons.length;
+        updatePlayerState({
+          headings: [...playerState.headings, ...newHeadings],
+          speeches: newStateSpeeches,
+          buttons: [...playerState.buttons, ...newStateButtons],
+        });
+        console.log("after", playerState);
 
-//     // Function to handle DOM mutations
-//     const handleMutation = (mutationsList, observer) => {
-//       for (const mutation of mutationsList) {
-//         const headingsToUpdate = new Set(); // may have new headings as well
-//         const headingsToRemove = new Set(); // may have headings that are not tracked.
-//         if (mutation.type === "childList") {
-//           let addedNodes = Array(...mutation.addedNodes)
-//             .filter((node) => {
-//               return node instanceof Element;
-//             })
-//             .filter(
-//               (element) =>
-//                 // isElementVisible(element) && //this one creates bug. TODO: check why.
-//                 element.style.display != "none" &&
-//                 element.style.opacity !== "0" &&
-//                 element.style.visibility != "hidden" &&
-//                 !element.classList.contains("synthesis_player_btn") &&
-//                 !element.classList.contains("synthesis_player_svg")
-//             );
-//           let removedNodes = Array(...mutation.removedNodes)
-//             .filter((node) => node instanceof Element)
-//             .filter(
-//               (element) =>
-//                 // isElementVisible(element) && //this one creates bug. TODO: check why
-//                 element.style.display != "none" &&
-//                 element.style.opacity !== "0" &&
-//                 element.style.visibility != "hidden" &&
-//                 !element.classList.contains("synthesis_player_btn") &&
-//                 !element.classList.contains("synthesis_player_svg")
-//             );
-//           let addedTexts = Array(...mutation.removedNodes).filter(
-//             (node) => node instanceof Text
-//           );
-//           if (addedNodes.length > 0) {
-//             logger.dom("Element(s) added:", addedNodes);
-//             // TODO: check that this works as it should
-//             addedNodes.forEach((node) => {
-//               headingsToUpdate.add(findClosestHeading(node));
-//               if (isHeadingElement(node)) {
-//                 if (node.previousSibling) {
-//                   if (node.previousSibling instanceof Text) {
-//                     headingsToUpdate.add(
-//                       findClosestHeading(node.previousSibling.parentElement)
-//                     );
-//                   } else {
-//                     headingsToUpdate.add(
-//                       findClosestHeading(node.previousSibling)
-//                     );
-//                   }
-//                 } else {
-//                   headingsToUpdate.add(findClosestHeading(node.parentElement));
-//                 }
-//               }
-//             });
-//           }
-//           if (removedNodes.length > 0) {
-//             logger.dom("Element(s) removed:", removedNodes);
-//             removedNodes.forEach((node) => {
-//               let foundHeading = false;
-//               // TODO: check this
-//               node
-//                 .querySelectorAll(config.targetHeadings.join(", "))
-//                 .forEach((x, i) => {
-//                   if (i == 0) {
-//                     foundHeading = true;
-//                     let indexStateHeading = state.headings.findIndex(
-//                       (y) => x == y
-//                     );
-//                     if (indexStateHeading > 0) {
-//                       headingsToUpdate.add(
-//                         state.headings[indexStateHeading - 1]
-//                       );
-//                     }
-//                   }
-//                   headingsToRemove.add(x);
-//                 });
-//               // TODO: check this
-//               if (!foundHeading) {
-//                 state.speeches
-//                   .map((x, i) => ({ value: x, index: i }))
-//                   .filter(
-//                     (x) =>
-//                       x.value.indexOf(getTextFromElement(node).text.trim()) !=
-//                       -1
-//                   )
-//                   .forEach((x) =>
-//                     headingsToUpdate.add(state.headings[x.index])
-//                   );
-//               }
-//             });
-//           }
-//           // we don't care fore removedTexts because even when removed new ones are added even if the new text is empty string
-//           if (addedTexts.length > 0) {
-//             logger.dom("Texts(s) added:", addedTexts);
-//             if (mutation.target instanceof Element) {
-//               headingsToUpdate.add(findClosestHeading(mutation.target));
-//             }
-//             // TODO: not sure if it can be anything else. Check it.
-//           }
-//         } else if (mutation.type === "characterData") {
-//           // TODO: check this.
-//           console.warn(
-//             "Carefull! this is unhandled. Text changed:",
-//             mutation.target.textContent
-//           );
-//         } else if (
-//           mutation.type === "attributes" &&
-//           mutation.attributeName === "style"
-//         ) {
-//           let targetElement = mutation.target;
-//           if (targetElement instanceof Element) {
-//             if (isElementVisible(targetElement)) {
-//               console.log(
-//                 `${targetElement.nodeName} with ID ${targetElement.id} became hidden. NEED TO UPDATE`,
-//                 headingsToUpdate
-//               );
-//             } else {
-//               console.log(
-//                 `${targetElement.nodeName} with ID ${targetElement.id} became hidden. NEED TO UPDATE`,
-//                 headingsToUpdate,
-//                 headingsToRemove
-//               );
-//             }
-//           }
-//         }
-//         headingsToUpdate.delete(null);
-//         if (headingsToUpdate.size > 0) {
-//           logger.dom("headingsToUpdate:", headingsToUpdate);
-//           let newStateSpeeches = [...state.speeches];
-//           headingsToUpdate.forEach((heading) => {
-//             let speech = getHeadingText(heading);
-//             let nextSibling = heading;
-//             while (nextSibling.nextElementSibling) {
-//               nextSibling = nextSibling.nextElementSibling;
-//               const { text, headindFound } = getTextFromElement(nextSibling);
-//               speech += text;
-//               if (headindFound) {
-//                 break;
-//               }
-//             }
-//             logger.info("created speech:", speech);
-//             let indexReturned = state.headings.findIndex((x) => x == heading);
-//             if (indexReturned > 0) {
-//               newStateSpeeches[indexReturned] = speech;
-//             } else {
-//               updateState({ headings: [...state.headings, heading] });
-//               renderButton(heading, state.headings.length - 1);
-//               newStateSpeeches.push(state.speeches.slice(-1)[0]);
-//             }
-//           });
-//           updateState({ speeches: newStateSpeeches });
-//         }
-//         headingsToRemove.delete(null);
-//         if (headingsToRemove.size > 0) {
-//           logger.dom("headingsToRemove:", headingsToRemove);
-//           let indexesToRemove = [];
-//           headingsToRemove.forEach((heading) => {
-//             indexesToRemove.push(state.headings.findIndex((x) => x == heading));
-//           });
-//           let newButtons;
-//           let newSpeeches;
-//           let newHeadings;
-//           indexesToRemove
-//             .sort()
-//             .reverse()
-//             .forEach((index) => {
-//               state.buttons[index].remove();
-//               newButtons = [
-//                 ...state.buttons.slice(0, index),
-//                 ...state.buttons.slice(index + 1),
-//               ];
-//               newSpeeches = [
-//                 ...state.speeches.slice(0, index),
-//                 ...state.speeches.slice(index + 1),
-//               ];
-//               newHeadings = [
-//                 ...state.headings.slice(0, index),
-//                 ...state.headings.slice(index + 1),
-//               ];
-//             });
-//           updateState({
-//             buttons: newButtons,
-//             speeches: newSpeeches,
-//             headings: newHeadings,
-//           });
-//         }
-//       }
-//     };
+        // add all buttons to the dom.
+        newStateButtons.forEach((newButton, i) => {
+          // add event listener
+          newButton.addEventListener("click", (e) =>
+            updateButtonState(e, oldArraysLength + i, playerState.utterThis)
+          );
+          // append button before the heading into DOM
+          let parentNode = newHeadings[i].parentNode;
+          parentNode.insertBefore(newButton, newHeadings[i]);
+        });
+      }
 
-//     // Options for the MutationObserver
-//     const observerOptions = {
-//       childList: true, // Observes changes to the list of children of the target node.
-//       subtree: true, // Observes changes to the entire subtree of the target node.
-//       characterData: true, // Observes changes to the value of text nodes.
-//       characterDataOldValue: true, // Records the previous value of text nodes when changed.
-//       attributeOldValue: true, // Records the previous value of attributes when changed.
-//       attributes: true, // Observes changes to attributes.
-//     };
+      headingsToRemove.delete(null);
+      if (headingsToRemove.size > 0) {
+        // removeHeadingsFromState(headingsToRemove);
+      }
+    } else if (mutation.type === "characterData") {
+      // TODO: check this.
+      console.warn(
+        "Carefull! this is unhandled mutation:",
+        mutation.target.textContent
+      );
+    } else if (
+      mutation.type === "attributes" &&
+      mutation.attributeName === "style"
+    ) {
+      console.log("this is style mutation.");
+    }
+  }
+};
 
-//     // Create a new MutationObserver
-//     const observer = new MutationObserver(handleMutation);
+// Options for the MutationObserver
+const observerOptions = {
+  childList: true, // Observes changes to the list of children of the target node.
+  subtree: true, // Observes changes to the entire subtree of the target node.
+  characterData: true, // Observes changes to the value of text nodes.
+  characterDataOldValue: true, // Records the previous value of text nodes when changed.
+  attributeOldValue: true, // Records the previous value of attributes when changed.
+  attributes: true, // Observes changes to attributes.
+};
 
-//     // Target element to observe
-//     const target = document.body; // You can change this to observe a specific element
+// Create a new MutationObserver
+const observer = new MutationObserver(handleMutation);
 
-//     // Start observing the target element with the specified options
-//     observer.observe(target, observerOptions);
-//   } else {
-//     console.log("Speech Synthesis API is not supported in this browser.");
-//   }
-// }
-// window.renderPlayer = renderPlayer;
+// Target element to observe
+const target = document.body; // You can change this to observe a specific element
+
+// Start observing the target element with the specified options
+observer.observe(target, observerOptions);
