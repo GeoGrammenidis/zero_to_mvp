@@ -757,30 +757,6 @@ function updatePositionButtonNearHeading(
   }px)`;
 }
 
-function removeHeadingsFromState(headingsToRemove) {
-  const newButtons = [...playerState.buttons];
-  const newSpeeches = [...playerState.speeches];
-  const newHeadings = [...playerState.headings];
-
-  headingsToRemove.forEach((heading) => {
-    const index = newHeadings.findIndex((x) => x === heading);
-    if (index !== -1) {
-      newButtons[index].remove();
-      newButtons.splice(index, 1);
-      newSpeeches.splice(index, 1);
-      newHeadings.splice(index, 1);
-    } else {
-      logger.warn(`Heading not found: ${heading}`);
-    }
-  });
-
-  updatePlayerState({
-    buttons: newButtons,
-    speeches: newSpeeches,
-    headings: newHeadings,
-  });
-}
-
 // Function to handle DOM mutations
 const handleMutation = (mutationsList, observer) => {
   for (const mutation of mutationsList) {
@@ -790,6 +766,9 @@ const handleMutation = (mutationsList, observer) => {
       let addedTexts = Array(...mutation.removedNodes).filter(
         (node) => node instanceof Text
       );
+      if (addedTexts.length > 0) {
+        addedNodes.push(mutation.target);
+      }
 
       handleMutationAddedNodes(addedNodes);
       handleMutationRemovedNodes(removedNodes, mutation);
@@ -886,8 +865,7 @@ function handleMutationRemovedNodes(removedNodes, mutation) {
         playerState.config.targetHeadings
       )
     );
-    updateHeadings(headingsToUpdate);
-    removeHeadings(headingsToRemove);
+    removeHeadings(headingsToRemove, mutation);
   }
 }
 
@@ -925,6 +903,7 @@ function updateHeadings(headingsToUpdate) {
         newHeadings.push(heading);
       }
     });
+
     // update players state
     let oldArraysLength = playerState.buttons.length;
     updatePlayerState({
@@ -946,35 +925,50 @@ function updateHeadings(headingsToUpdate) {
   }
 }
 
-function removeHeadings(headingsToRemove) {
-  let indexesToRemove = [];
-  headingsToRemove.forEach((heading) => {
-    indexesToRemove.push(playerState.headings.findIndex((x) => x == heading));
-  });
-  let newButtons;
-  let newSpeeches;
-  let newHeadings;
-  indexesToRemove
-    .sort()
-    .reverse()
-    .forEach((index) => {
-      playerState.buttons[index].remove();
-      newButtons = [
-        ...playerState.buttons.slice(0, index),
-        ...playerState.buttons.slice(index + 1),
-      ];
-      newSpeeches = [
-        ...playerState.speeches.slice(0, index),
-        ...playerState.speeches.slice(index + 1),
-      ];
-      newHeadings = [
-        ...playerState.headings.slice(0, index),
-        ...playerState.headings.slice(index + 1),
-      ];
+function removeHeadings(headingsToRemove, mutation) {
+  headingsToRemove.delete(null);
+  if (headingsToRemove.size > 0) {
+    let indexesToRemove = [];
+    headingsToRemove.forEach((heading) => {
+      indexesToRemove.push(playerState.headings.findIndex((x) => x == heading));
     });
-  updatePlayerState({
-    buttons: newButtons,
-    speeches: newSpeeches,
-    headings: newHeadings,
-  });
+    let newButtons = [...playerState.buttons];
+    let newSpeeches = [...playerState.speeches];
+    let newHeadings = [...playerState.headings];
+    indexesToRemove
+      .sort()
+      .reverse()
+      .forEach((index) => {
+        playerState.buttons[index].remove();
+        newButtons = [
+          ...newButtons.slice(0, index),
+          ...newButtons.slice(index + 1),
+        ];
+        newSpeeches = [
+          ...newSpeeches.slice(0, index),
+          ...newSpeeches.slice(index + 1),
+        ];
+        newHeadings = [
+          ...newHeadings.slice(0, index),
+          ...newHeadings.slice(index + 1),
+        ];
+      });
+
+    updatePlayerState({
+      buttons: newButtons,
+      speeches: newSpeeches,
+      headings: newHeadings,
+    });
+    let headingsToUpdate = new Set();
+    headingsToUpdate.add(
+      getClosestHeading(
+        mutation.previousSibling.previousElementSibling
+          ? mutation.previousSibling.previousElementSibling
+          : mutation.previousSibling.parentElement,
+        playerState.config.targetHeadings
+      )
+    );
+
+    updateHeadings(headingsToUpdate);
+  }
 }
