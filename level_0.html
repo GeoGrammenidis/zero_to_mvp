@@ -41,18 +41,46 @@
 
       <h2 class="update">A heading that should update</h2>
       <!-- <p>lalala</p> -->
-      <div id="whatever">
-        <p>text inside here..lol?</p>
 
-        <h2 class="remove_1">A heading that was removed</h2>
-        <p>is text here as well...</p>
+      <div>
+        <p>Previous element</p>
 
-        <div class="heading">custom headline</div>
-        <p>some text is here...</p>
-        <h2 class="remove">A second heading that was removed</h2>
-        <p>a random paragraph removed</p>
+        <div id="whatever">
+          <p>text inside here..lol?</p>
+
+          <h2 class="remove_1">A heading that was removed</h2>
+          <p>is text here as well...</p>
+
+          <div class="heading">custom headline</div>
+          <p>some text is here...</p>
+          <h2 class="remove">A second heading <span>that was</span> removed</h2>
+          <div>
+            <div>
+              <h3 id="lala">asddsad</h3>
+            </div>
+            asd
+            <p id="looking"></p>
+            <p>a random paragraph <span></span>removed</p>
+          </div>
+        </div>
       </div>
-
+      <h2 id="el_0"></h2>
+      <div id="el_1"></div>
+      <div id="el_2">
+        <div id="el_3"></div>
+        <div id="el_4"></div>
+        <div id="el_5"></div>
+      </div>
+      <div id="el_6">
+        <div id="el_7">
+          <div id="el_8"></div>
+          <div id="el_9"></div>
+        </div>
+        <div id="el_10">
+          <div id="el_11"></div>
+          <div id="el_12"></div>
+        </div>
+      </div>
       <button id="add_element">add element</button>
       <button id="remove_element">remove element</button>
       <button id="change_element">change element</button>
@@ -85,7 +113,7 @@
         .addEventListener("click", () => {
           console.log("clicked change");
           // document.querySelector(".to_change").innerHTML = "something new!";
-          document.querySelector(".to_change").innerHTML = "";
+          document.querySelector(".to_change").innerHTML = "asd new text";
           // document.querySelector(".to_change_2").innerHTML = "asd";
 
           // const newSpan = document.createElement("span");
@@ -111,7 +139,7 @@
         .addEventListener("click", () => {
           const newHeading = document.createElement("h2");
           newHeading.textContent =
-            "This is a new paragraph created with JavaScript!";
+            "This is a new heading created with JavaScript!";
           const existingNode = document.querySelector("#heading_after_this");
           existingNode.parentNode.insertBefore(
             newHeading,

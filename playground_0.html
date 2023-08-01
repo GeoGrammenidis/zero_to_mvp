@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- <link rel="stylesheet" href="styles.css" /> -->
+    <title>Level Zero</title>
+    <style>
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="to_remove_all">
+      <p id="trace_1">Trace heading1, shouldn't find heading.</p>
+      <h1>Synthesis playground</h1>
+      <div>
+        <h2 id="toogle_hide">Level Zero!!</h2>
+        <p id="heading_after_this" class="hidden">
+          From zero to MVP as always!!!
+        </p>
+        <p></p>
+        <div>
+          <p id="trace_2">Trace heading2.</p>
+        </div>
+        <p>Hello <span>world!</span></p>
+      </div>
+      <p id="trace_3">Shouldn't read this. Shouldn't trace heading for this.</p>
+      <p>Shouldn't read this either. Shouldn't trace heading for this.</p>
+
+      <h2 id="to_remove_heading_2">
+        Second Heading Level <span id="trace_4">Zero</span>
+      </h2>
+      <p>From zero to MVP as always! Don't forget to drink water!</p>
+      <div class="to_add"></div>
+      <p class="to_remove">An element that can be removed.</p>
+      <p class="to_change">An element that can be changed.</p>
+      <p class="to_change_2">A 2nd element that can be changed.</p>
+      <p class="to_remove">A 2nd element that can be removed.</p>
+
+      <h2 class="update">A heading that should update</h2>
+      <!-- <p>lalala</p> -->
+      <div id="whatever">
+        <p>text inside here..lol?</p>
+
+        <h2 class="remove_1">A heading that was removed</h2>
+        <p>is text here as well...</p>
+
+        <div class="heading">custom headline</div>
+        <p>some text is here...</p>
+        <h2 class="remove">A second heading <span>that was</span> removed</h2>
+        <div>
+          <div>
+            <h3 id="lala">asddsad</h3>
+          </div>
+          asd
+          <p></p>
+          <p>a random paragraph <span></span>removed</p>
+        </div>
+      </div>
+      <h2 id="el_0"></h2>
+      <div id="el_1"></div>
+      <div id="el_2">
+        <div id="el_3"></div>
+        <div id="el_4"></div>
+        <div id="el_5"></div>
+      </div>
+      <div id="el_6">
+        <div id="el_7">
+          <div id="el_8"></div>
+          <div id="el_9"></div>
+        </div>
+        <div id="el_10">
+          <div id="el_11"></div>
+          <div id="el_12"></div>
+        </div>
+      </div>
+      <button id="add_element">add element</button>
+      <button id="remove_element">remove element</button>
+      <button id="change_element">change element</button>
+    </div>
+    <button id="remove_all">remove all</button>
+    <button id="remove_heading_2">remove heading 2</button>
+    <button id="remove_whatever">remove whatever</button>
+    <button id="add_heading">add heading</button>
+    <button id="btn_toogle_hide">toggle hide</button>
+    <script src="synthesis.js" type="module" defer></script>
+    <script>
+      function isHeadingElement(element, targetHeadings) {
+        return (
+          element &&
+          element.tagName &&
+          targetHeadings.some(
+            (x) => x.toLowerCase() === element.tagName.toLowerCase()
+          )
+        );
+      }
+
+      function getNextTargetOrHeading(
+        targetElement,
+        currentElement,
+        targetHeadings,
+        nextSiblings = []
+      ) {
+        // Check for target element
+        if (currentElement === targetElement) {
+          return "target";
+        }
+        // Check for heading element
+        if (isHeadingElement(currentElement, targetHeadings)) {
+          return "heading";
+        }
+
+        if (currentElement.firstElementChild) {
+          return getNextTargetOrHeading(
+            targetElement,
+            currentElement.firstElementChild,
+            targetHeadings,
+            currentElement.nextElementSibling
+              ? [...nextSiblings, currentElement.nextElementSibling]
+              : nextSiblings
+          );
+        } else if (currentElement.nextElementSibling) {
+          return getNextTargetOrHeading(
+            targetElement,
+            currentElement.nextElementSibling,
+            targetHeadings,
+            nextSiblings
+          );
+        } else {
+          return getNextTargetOrHeading(
+            targetElement,
+            nextSiblings.slice(-1)[0],
+            targetHeadings,
+            nextSiblings.slice(0, -1)
+          );
+        }
+      }
+      console.log(
+        getNextTargetOrHeading(
+          document.getElementById("el_9"),
+          document.getElementById("el_1"),
+          ["h1", "h2", "h3"]
+        )
+      );
+    </script>
+  </body>
+</html>
